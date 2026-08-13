@@ -1,0 +1,9 @@
+# Configurazione Supabase CLI (opzionale, per chi vuole usare `supabase` da terminale).
+# Non necessaria per il setup base: basta incollare setup.sql nel SQL Editor del sito.
+project_id = "slepbolo"
+
+[auth]
+enable_signup = true
+# Per la demo/sviluppo puoi disattivare la conferma email così si accede subito.
+[auth.email]
+enable_confirmations = false

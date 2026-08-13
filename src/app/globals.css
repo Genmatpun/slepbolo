@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* ============================================================
+   SLEPBOLO — Design system
+   Palette ispirata al logo dell'Università di Bologna.
+   Tutti i token vivono qui: niente valori arbitrari nel codice.
+   ============================================================ */
+
+@theme {
+  /* Colori */
+  --color-rosso: #a2001d;
+  --color-rosso-scuro: #7a0016;
+  --color-arancio: #e4572e;
+  --color-crema: #faf3e7;
+  --color-carta: #fffdf9;
+  --color-inchiostro: #1b1815;
+  --color-grigio: #736b62;
+  --color-linea: #e5dccb;
+  --color-verde: #2e7d5b;
+
+  /* Angoli */
+  --radius-card: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 99px;
+
+  /* Ombre basse e calde, mai nere pure */
+  --shadow-morbida: 0 1px 2px rgba(27, 24, 21, 0.04), 0 8px 24px rgba(27, 24, 21, 0.06);
+  --shadow-alta: 0 12px 48px rgba(27, 24, 21, 0.18);
+
+  /* Tipografia di sistema */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-crema);
+    color: var(--color-inchiostro);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+  }
+
+  /* Focus visibile ovunque (accessibilità AA) */
+  :focus-visible {
+    outline: 2px solid var(--color-rosso);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-arancio) 28%, transparent);
+  }
+}
+
+@layer components {
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-arancio);
+  }
+}

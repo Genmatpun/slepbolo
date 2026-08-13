@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLEPBOLO — Trova il tuo coinquilino a Bologna</title>
+<style>
+:root{
+  --rosso:#A2001D;
+  --rosso-scuro:#7A0016;
+  --arancio:#E4572E;
+  --crema:#FAF3E7;
+  --carta:#FFFDF9;
+  --inchiostro:#1B1815;
+  --grigio:#736B62;
+  --linea:#E5DCCB;
+  --verde:#2E7D5B;
+  --radius:14px;
+  --radius-lg:22px;
+  --ombra:0 1px 2px rgba(27,24,21,.04), 0 8px 24px rgba(27,24,21,.06);
+  --ombra-alta:0 12px 48px rgba(27,24,21,.18);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--crema);color:var(--inchiostro);
+  -webkit-font-smoothing:antialiased;line-height:1.5;
+}
+img{max-width:100%;display:block}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px}
+
+/* ---------- TIPOGRAFIA ---------- */
+h1,h2,h3{letter-spacing:-.02em;line-height:1.12;font-weight:700}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--arancio)}
+
+/* ---------- HEADER ---------- */
+header{
+  position:sticky;top:0;z-index:60;background:rgba(250,243,231,.88);
+  backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid var(--linea);
+}
+.nav{display:flex;align-items:center;justify-content:space-between;height:68px;gap:24px}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo-mark{
+  width:34px;height:34px;border-radius:10px;background:var(--rosso);
+  display:grid;place-items:center;position:relative;overflow:hidden;
+}
+.logo-mark::after{content:"";position:absolute;inset:auto -6px -8px auto;width:22px;height:22px;background:var(--arancio);border-radius:50%}
+.logo-mark span{position:relative;z-index:2;color:var(--crema);font-weight:800;font-size:15px;letter-spacing:-.04em}
+.logo-text{font-weight:800;font-size:19px;letter-spacing:-.05em}
+.logo-text i{font-style:normal;color:var(--rosso)}
+.nav-links{display:flex;gap:4px;margin-left:auto}
+.nav-links button{
+  padding:9px 14px;border-radius:99px;font-size:14px;font-weight:600;color:var(--grigio);
+  transition:.16s;
+}
+.nav-links button:hover{background:rgba(162,0,29,.06);color:var(--inchiostro)}
+.nav-links button.on{background:var(--inchiostro);color:var(--crema)}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:99px;
+  font-size:14px;font-weight:650;transition:.16s;white-space:nowrap;
+}
+.btn-primary{background:var(--rosso);color:#fff}
+.btn-primary:hover{background:var(--rosso-scuro);transform:translateY(-1px)}
+.btn-ghost{border:1.5px solid var(--linea);background:var(--carta)}
+.btn-ghost:hover{border-color:var(--inchiostro)}
+.btn-arancio{background:var(--arancio);color:#fff}
+.btn-arancio:hover{filter:brightness(.93)}
+.btn-block{width:100%;justify-content:center}
+
+/* ---------- HERO ---------- */
+.hero{padding:70px 0 44px;position:relative;overflow:hidden}
+.hero::before{
+  content:"";position:absolute;top:-180px;right:-120px;width:520px;height:520px;
+  background:radial-gradient(circle,rgba(228,87,46,.16),transparent 68%);pointer-events:none;
+}
+.hero h1{font-size:clamp(34px,5.4vw,60px);max-width:15ch;margin:14px 0 18px}
+.hero h1 em{font-style:normal;color:var(--rosso)}
+.hero p.lead{font-size:18px;color:var(--grigio);max-width:52ch;margin-bottom:30px}
+.hero-stats{display:flex;gap:34px;margin-top:34px;flex-wrap:wrap}
+.hero-stats div b{display:block;font-size:26px;font-weight:800;letter-spacing:-.03em}
+.hero-stats div span{font-size:13px;color:var(--grigio)}
+
+/* ---------- SEARCHBAR ---------- */
+.searchbar{
+  background:var(--carta);border:1px solid var(--linea);border-radius:var(--radius-lg);
+  box-shadow:var(--ombra);padding:8px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;max-width:920px;
+}
+.sb-field{flex:1 1 170px;padding:10px 16px;border-radius:16px;transition:.14s;min-width:0}
+.sb-field:hover{background:var(--crema)}
+.sb-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--grigio);margin-bottom:2px}
+.sb-field select,.sb-field input{width:100%;border:none;background:transparent;font-size:15px;font-weight:600;outline:none;appearance:none}
+.sb-divider{width:1px;height:34px;background:var(--linea)}
+
+/* ---------- LAYOUT RICERCA ---------- */
+main{padding-bottom:80px}
+.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:8px 0 22px;flex-wrap:wrap}
+.section-head h2{font-size:26px}
+.section-head p{font-size:14px;color:var(--grigio);margin-top:4px}
+.toolbar{display:flex;gap:8px;align-items:center}
+.seg{display:flex;background:var(--carta);border:1px solid var(--linea);border-radius:99px;padding:3px}
+.seg button{padding:8px 16px;border-radius:99px;font-size:13px;font-weight:650;color:var(--grigio)}
+.seg button.on{background:var(--inchiostro);color:var(--crema)}
+.layout{display:grid;grid-template-columns:260px 1fr;gap:28px;align-items:start}
+
+/* ---------- FILTRI ---------- */
+.filtri{
+  background:var(--carta);border:1px solid var(--linea);border-radius:var(--radius-lg);
+  padding:20px;position:sticky;top:88px;box-shadow:var(--ombra);
+}
+.filtri h3{font-size:15px;margin-bottom:2px}
+.fgroup{padding:16px 0;border-bottom:1px solid var(--linea)}
+.fgroup:last-of-type{border-bottom:none}
+.fgroup > label{display:block;font-size:12px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--grigio);margin-bottom:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  padding:7px 12px;border-radius:99px;border:1.5px solid var(--linea);background:var(--crema);
+  font-size:13px;font-weight:600;transition:.14s;
+}
+.chip:hover{border-color:var(--grigio)}
+.chip.on{background:var(--rosso);border-color:var(--rosso);color:#fff}
+select.full{width:100%;padding:10px 12px;border:1.5px solid var(--linea);border-radius:10px;background:var(--crema);font-size:14px;font-weight:600;outline:none}
+select.full:focus{border-color:var(--rosso)}
+input[type=range]{width:100%;accent-color:var(--rosso)}
+.range-val{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-top:6px}
+.range-val span:last-child{color:var(--rosso)}
+.check{display:flex;align-items:center;gap:9px;font-size:14px;padding:5px 0;cursor:pointer}
+.check input{accent-color:var(--rosso);width:16px;height:16px}
+.reset{font-size:13px;font-weight:650;color:var(--rosso);text-decoration:underline;margin-top:14px}
+
+/* ---------- GRIGLIA ANNUNCI ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.card{
+  background:var(--carta);border:1px solid var(--linea);border-radius:var(--radius-lg);
+  overflow:hidden;transition:.2s;cursor:pointer;display:flex;flex-direction:column;
+}
+.card:hover{transform:translateY(-3px);box-shadow:var(--ombra-alta);border-color:var(--grigio)}
+.card-img{height:168px;position:relative;display:grid;place-items:center}
+.card-img .zona-tag{
+  position:absolute;left:12px;top:12px;background:rgba(255,253,249,.94);padding:5px 11px;
+  border-radius:99px;font-size:11.5px;font-weight:750;letter-spacing:.02em;
+}
+.card-img .prezzo-tag{
+  position:absolute;right:12px;bottom:12px;background:var(--inchiostro);color:var(--crema);
+  padding:6px 12px;border-radius:99px;font-size:14px;font-weight:750;
+}
+.card-img .glyph{font-size:44px;opacity:.28;font-weight:800;letter-spacing:-.06em;color:#fff}
+.card-body{padding:16px 16px 18px;display:flex;flex-direction:column;gap:9px;flex:1}
+.card-body h3{font-size:16.5px;line-height:1.25}
+.meta{font-size:13px;color:var(--grigio);display:flex;flex-wrap:wrap;gap:5px 12px}
+.rooms{display:flex;align-items:center;gap:8px;margin-top:2px}
+.dots{display:flex;gap:4px}
+.dot{width:12px;height:12px;border-radius:4px;background:var(--linea)}
+.dot.free{background:var(--verde)}
+.rooms span{font-size:12.5px;font-weight:650;color:var(--grigio)}
+.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:4px}
+.tag{font-size:11.5px;font-weight:650;padding:4px 9px;border-radius:6px;background:var(--crema);border:1px solid var(--linea);color:var(--grigio)}
+.tag.hot{background:rgba(228,87,46,.12);border-color:rgba(228,87,46,.3);color:#B23A17}
+.empty{text-align:center;padding:70px 20px;color:var(--grigio)}
+.empty b{display:block;font-size:19px;color:var(--inchiostro);margin-bottom:6px}
+
+/* ---------- MAPPA ---------- */
+.mappa-wrap{
+  background:var(--carta);border:1px solid var(--linea);border-radius:var(--radius-lg);
+  overflow:hidden;box-shadow:var(--ombra);display:grid;grid-template-columns:1fr 300px;min-height:560px;
+}
+.mappa{position:relative;background:#F3EADB}
+.mappa svg{display:block;width:100%;height:100%}
+.pin{
+  position:absolute;transform:translate(-50%,-100%);cursor:pointer;transition:.16s;z-index:2;
+}
+.pin:hover,.pin.on{z-index:5;transform:translate(-50%,-100%) scale(1.12)}
+.pin-body{
+  background:var(--rosso);color:#fff;font-size:12.5px;font-weight:750;padding:6px 11px;
+  border-radius:99px;box-shadow:0 4px 12px rgba(0,0,0,.22);white-space:nowrap;border:2px solid #fff;
+}
+.pin.on .pin-body{background:var(--inchiostro)}
+.pin::after{content:"";position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);border:5px solid transparent;border-top-color:#fff}
+.mappa-side{border-left:1px solid var(--linea);overflow-y:auto;max-height:560px;padding:16px}
+.mini{display:flex;gap:11px;padding:11px;border-radius:12px;cursor:pointer;transition:.14s;border:1.5px solid transparent}
+.mini:hover{background:var(--crema)}
+.mini.on{background:var(--crema);border-color:var(--rosso)}
+.mini-img{width:56px;height:56px;border-radius:10px;flex-shrink:0}
+.mini b{font-size:13.5px;display:block;line-height:1.25}
+.mini span{font-size:12px;color:var(--grigio)}
+.mini .p{font-size:13.5px;font-weight:750;color:var(--rosso)}
+.legenda{position:absolute;left:16px;bottom:16px;background:rgba(255,253,249,.94);border:1px solid var(--linea);border-radius:12px;padding:10px 13px;font-size:11.5px;z-index:6}
+.legenda div{display:flex;align-items:center;gap:7px;margin:3px 0;font-weight:600;color:var(--grigio)}
+.leg-sq{width:11px;height:11px;border-radius:3px}
+
+/* ---------- COME FUNZIONA ---------- */
+.how{padding:64px 0;border-top:1px solid var(--linea);margin-top:60px}
+.how-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:22px;margin-top:32px}
+.how-card{background:var(--carta);border:1px solid var(--linea);border-radius:var(--radius-lg);padding:24px}
+.how-num{width:34px;height:34px;border-radius:10px;background:var(--rosso);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;margin-bottom:14px}
+.how-card h3{font-size:17px;margin-bottom:7px}
+.how-card p{font-size:14px;color:var(--grigio)}
+
+/* ---------- MODALI ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(27,24,21,.55);backdrop-filter:blur(3px);
+  z-index:100;display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;
+}
+.overlay.open{display:flex}
+.modal{
+  background:var(--carta);border-radius:26px;width:100%;max-width:760px;
+  box-shadow:var(--ombra-alta);overflow:hidden;animation:pop .22s ease;
+}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.98)}}
+.modal-head{padding:22px 26px;border-bottom:1px solid var(--linea);display:flex;justify-content:space-between;align-items:flex-start;gap:16px;position:sticky;top:0;background:var(--carta);z-index:3}
+.modal-head h2{font-size:21px}
+.modal-head p{font-size:13.5px;color:var(--grigio);margin-top:3px}
+.x{width:34px;height:34px;border-radius:50%;background:var(--crema);display:grid;place-items:center;font-size:17px;color:var(--grigio);flex-shrink:0}
+.x:hover{background:var(--linea)}
+.modal-body{padding:26px}
+.modal-foot{padding:18px 26px;border-top:1px solid var(--linea);display:flex;gap:10px;justify-content:flex-end;background:var(--crema)}
+
+/* dettaglio */
+.det-hero{height:230px;position:relative;display:grid;place-items:center}
+.det-hero .glyph{font-size:76px;font-weight:800;color:#fff;opacity:.25;letter-spacing:-.07em}
+.det-price{position:absolute;right:20px;bottom:20px;background:var(--carta);padding:10px 16px;border-radius:14px;box-shadow:var(--ombra)}
+.det-price b{font-size:24px;letter-spacing:-.03em}
+.det-price span{font-size:12.5px;color:var(--grigio)}
+.det-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:20px 0}
+.det-box{background:var(--crema);border-radius:12px;padding:13px 15px}
+.det-box label{display:block;font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--grigio);margin-bottom:3px}
+.det-box b{font-size:15px}
+.det-sec{margin-top:24px}
+.det-sec h4{font-size:15px;margin-bottom:10px}
+.coinq{display:flex;gap:12px;flex-wrap:wrap}
+.coinq-card{background:var(--crema);border-radius:12px;padding:12px 14px;min-width:150px;flex:1}
+.coinq-card b{font-size:14.5px;display:block}
+.coinq-card span{font-size:12.5px;color:var(--grigio)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--arancio);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:750;margin-bottom:8px}
+ul.lista{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:7px}
+ul.lista li{font-size:14px;color:var(--grigio);display:flex;gap:8px;align-items:center}
+ul.lista li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--arancio);flex-shrink:0}
+ul.lista.uno{grid-template-columns:1fr}
+ul.lista.uno li{justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px dashed var(--linea)}
+ul.lista.uno li::before{display:none}
+ul.lista.uno li b{font-weight:650;color:var(--inchiostro)}
+
+/* form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field.wide{grid-column:1/-1}
+.field label{font-size:12.5px;font-weight:700;color:var(--inchiostro)}
+.field .hint{font-size:12px;color:var(--grigio);font-weight:500}
+.field input,.field select,.field textarea{
+  padding:11px 13px;border:1.5px solid var(--linea);border-radius:11px;background:var(--crema);
+  font-size:14.5px;outline:none;transition:.14s;font-family:inherit;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--rosso);background:var(--carta)}
+.field textarea{resize:vertical;min-height:88px}
+.form-sec{margin-bottom:26px}
+.form-sec > h4{font-size:13px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--arancio);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--linea)}
+.ok{
+  background:rgba(46,125,91,.1);border:1.5px solid rgba(46,125,91,.3);color:#1F5C41;
+  padding:14px 16px;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:18px;display:none;
+}
+.ok.show{display:block}
+
+/* footer */
+footer{background:var(--inchiostro);color:var(--crema);padding:48px 0 34px;margin-top:0}
+.foot-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:36px}
+footer h4{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--arancio);margin-bottom:12px}
+footer p,footer a{font-size:14px;color:rgba(250,243,231,.7);display:block;margin-bottom:7px}
+footer a:hover{color:var(--crema)}
+.foot-bot{margin-top:34px;padding-top:20px;border-top:1px solid rgba(250,243,231,.14);font-size:12.5px;color:rgba(250,243,231,.5);display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr}
+  .filtri{position:static}
+  .mappa-wrap{grid-template-columns:1fr}
+  .mappa{min-height:400px}
+  .mappa-side{border-left:none;border-top:1px solid var(--linea);max-height:300px}
+  .form-grid{grid-template-columns:1fr}
+  .foot-grid{grid-template-columns:1fr}
+  .nav-links{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="logo">
+      <div class="logo-mark"><span>SB</span></div>
+      <div class="logo-text">SLEP<i>BOLO</i></div>
+    </div>
+    <nav class="nav-links">
+      <button class="on" data-view="cerca">Cerca stanza</button>
+      <button data-view="how">Come funziona</button>
+      <button onclick="apriProfilo()">Il mio profilo</button>
+    </nav>
+    <button class="btn btn-primary" onclick="apriPubblica()">+ Pubblica annuncio</button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Solo studenti · Solo Bologna</div>
+    <h1>Trova il tuo <em>coinquilino</em>, non solo la stanza.</h1>
+    <p class="lead">Stanze in appartamenti condivisi da 3 mesi a un anno, pubblicate da chi ci abita già. Vedi chi c'è in casa, quanto si paga davvero e quanto dista dalla tua sede UniBo.</p>
+
+    <div class="searchbar">
+      <div class="sb-field">
+        <label>Zona</label>
+        <select id="sb-zona"><option value="">Tutta Bologna</option></select>
+      </div>
+      <div class="sb-divider"></div>
+      <div class="sb-field">
+        <label>Sede UniBo</label>
+        <select id="sb-sede">
+          <option value="">Qualsiasi sede</option>
+          <option>Zamboni / Centro</option>
+          <option>Ingegneria — Terracini</option>
+          <option>Agraria — Filippo Re</option>
+          <option>Economia — Belle Arti</option>
+          <option>Medicina — Sant'Orsola</option>
+        </select>
+      </div>
+      <div class="sb-divider"></div>
+      <div class="sb-field">
+        <label>Da quando</label>
+        <select id="sb-da">
+          <option>Settembre 2026</option>
+          <option>Ottobre 2026</option>
+          <option>Gennaio 2027</option>
+          <option>Flessibile</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="vaiARicerca()">Cerca stanze</button>
+    </div>
+
+    <div class="hero-stats">
+      <div><b id="st-annunci">—</b><span>annunci attivi</span></div>
+      <div><b id="st-camere">—</b><span>camere libere ora</span></div>
+      <div><b id="st-prezzo">—</b><span>prezzo medio / mese</span></div>
+      <div><b>14</b><span>zone coperte</span></div>
+    </div>
+  </div>
+</section>
+
+<main>
+<div class="wrap">
+
+  <div class="section-head" id="ricerca">
+    <div>
+      <h2>Stanze disponibili</h2>
+      <p id="conteggio">—</p>
+    </div>
+    <div class="toolbar">
+      <div class="seg">
+        <button class="on" id="tab-griglia" onclick="setVista('griglia')">Griglia</button>
+        <button id="tab-mappa" onclick="setVista('mappa')">Mappa</button>
+      </div>
+      <select class="full" style="width:auto" id="ordina" onchange="render()">
+        <option value="rilevanza">Ordina: consigliati</option>
+        <option value="prezzo-asc">Prezzo crescente</option>
+        <option value="prezzo-desc">Prezzo decrescente</option>
+        <option value="distanza">Più vicini alla sede</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="filtri">
+      <h3>Filtri</h3>
+
+      <div class="fgroup">
+        <label>Prezzo massimo</label>
+        <input type="range" id="f-prezzo" min="250" max="700" step="10" value="700" oninput="render()">
+        <div class="range-val"><span>250 €</span><span id="f-prezzo-val">700 €</span></div>
+      </div>
+
+      <div class="fgroup">
+        <label>Zona</label>
+        <select class="full" id="f-zona" onchange="render()"><option value="">Tutte le zone</option></select>
+      </div>
+
+      <div class="fgroup">
+        <label>Casa per</label>
+        <div class="chips" id="f-genere">
+          <button class="chip on" data-v="">Indifferente</button>
+          <button class="chip" data-v="ragazze">Ragazze</button>
+          <button class="chip" data-v="ragazzi">Ragazzi</button>
+          <button class="chip" data-v="misto">Mista</button>
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <label>Tipo di stanza</label>
+        <div class="chips" id="f-tipo">
+          <button class="chip on" data-v="">Tutte</button>
+          <button class="chip" data-v="Singola">Singola</button>
+          <button class="chip" data-v="Doppia">Doppia</button>
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <label>Durata minima</label>
+        <div class="chips" id="f-durata">
+          <button class="chip on" data-v="0">Tutte</button>
+          <button class="chip" data-v="3">3 mesi</button>
+          <button class="chip" data-v="6">6 mesi</button>
+          <button class="chip" data-v="12">12 mesi</button>
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <label>Deve avere</label>
+        <label class="check"><input type="checkbox" class="f-serv" value="Spese incluse" onchange="render()"> Spese incluse</label>
+        <label class="check"><input type="checkbox" class="f-serv" value="Wi-Fi" onchange="render()"> Wi-Fi</label>
+        <label class="check"><input type="checkbox" class="f-serv" value="Lavatrice" onchange="render()"> Lavatrice</label>
+        <label class="check"><input type="checkbox" class="f-serv" value="Balcone" onchange="render()"> Balcone</label>
+        <label class="check"><input type="checkbox" class="f-serv" value="Arredata" onchange="render()"> Arredata</label>
+        <label class="check"><input type="checkbox" class="f-serv" value="Contratto registrato" onchange="render()"> Contratto registrato</label>
+      </div>
+
+      <button class="reset" onclick="resetFiltri()">Azzera tutti i filtri</button>
+    </aside>
+
+    <section>
+      <div id="vista-griglia"><div class="grid" id="grid"></div></div>
+
+      <div id="vista-mappa" style="display:none">
+        <div class="mappa-wrap">
+          <div class="mappa" id="mappa">
+            <svg viewBox="0 0 600 520" preserveAspectRatio="xMidYMid slice">
+              <rect width="600" height="520" fill="#F3EADB"/>
+              <!-- verde / parchi -->
+              <ellipse cx="120" cy="430" rx="95" ry="62" fill="#DDE7D5"/>
+              <ellipse cx="510" cy="120" rx="80" ry="55" fill="#DDE7D5"/>
+              <path d="M300 470 q60 -30 130 -10 l40 60 h-210z" fill="#DDE7D5"/>
+              <!-- ferrovia -->
+              <path d="M0 205 L600 165" stroke="#C9BCA6" stroke-width="7" fill="none"/>
+              <path d="M0 205 L600 165" stroke="#F3EADB" stroke-width="2" stroke-dasharray="9 9" fill="none"/>
+              <!-- viali di circonvallazione -->
+              <path d="M300 195 C 405 195 470 245 465 300 C 460 360 395 405 300 405 C 205 405 140 360 135 300 C 130 245 195 195 300 195 Z"
+                    fill="#EFE3CE" stroke="#D9C9AC" stroke-width="9"/>
+              <!-- centro storico -->
+              <path d="M300 235 C 370 235 415 265 412 302 C 409 342 365 368 300 368 C 235 368 191 342 188 302 C 185 265 230 235 300 235 Z"
+                    fill="#E9DABF" stroke="#DDCBAB" stroke-width="2"/>
+              <!-- strade radiali -->
+              <g stroke="#D9C9AC" stroke-width="5" fill="none">
+                <path d="M300 300 L300 100"/><path d="M300 300 L300 500"/>
+                <path d="M300 300 L560 300"/><path d="M300 300 L40 300"/>
+                <path d="M300 300 L470 140"/><path d="M300 300 L130 460"/>
+                <path d="M300 300 L470 460"/><path d="M300 300 L130 140"/>
+              </g>
+              <!-- due torri -->
+              <g transform="translate(322,292)">
+                <rect x="-4" y="-30" width="8" height="30" fill="#A2001D"/>
+                <rect x="7" y="-20" width="7" height="20" fill="#E4572E"/>
+              </g>
+              <!-- etichette zone -->
+              <g font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="#8C8171">
+                <text x="300" y="315" text-anchor="middle" fill="#A2001D">CENTRO</text>
+                <text x="300" y="150" text-anchor="middle">BOLOGNINA</text>
+                <text x="470" y="330" text-anchor="middle">MASSARENTI</text>
+                <text x="112" y="300" text-anchor="middle">SARAGOZZA</text>
+                <text x="300" y="455" text-anchor="middle">MURRI / COLLI</text>
+                <text x="465" y="215" text-anchor="middle">SAN DONATO</text>
+                <text x="140" y="185" text-anchor="middle">NAVILE</text>
+                <text x="150" y="440" text-anchor="middle">BARCA</text>
+              </g>
+              <!-- sedi unibo -->
+              <g id="sedi"></g>
+            </svg>
+            <div class="legenda">
+              <div><span class="leg-sq" style="background:var(--rosso)"></span> Annuncio</div>
+              <div><span class="leg-sq" style="background:#2E5FA3"></span> Sede UniBo</div>
+              <div><span class="leg-sq" style="background:#E9DABF"></span> Centro storico</div>
+            </div>
+          </div>
+          <div class="mappa-side" id="mappa-side"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="how" id="how">
+    <div class="eyebrow">Come funziona</div>
+    <h2 style="font-size:30px;margin-top:10px">Due lati, una casa.</h2>
+    <div class="how-grid">
+      <div class="how-card">
+        <div class="how-num">1</div>
+        <h3>Hai una stanza libera</h3>
+        <p>Pubblichi l'appartamento: quante camere ci sono, quante sono già occupate, chi ci abita e quanto si paga di affitto e spese.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-num">2</div>
+        <h3>Cerchi casa</h3>
+        <p>Crei il profilo studente: facoltà, sede, budget, abitudini. Filtri per zona e distanza dalle lezioni.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-num">3</div>
+        <h3>Vi trovate</h3>
+        <p>Vedi chi sono i futuri coinquilini prima di scrivere. Niente agenzie, niente annunci fantasma di sublocazione.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-num">4</div>
+        <h3>Chiudete l'accordo</h3>
+        <p>Chat, visita (anche in video) e contratto. SLEPBOLO indica sempre se il contratto è registrato e cedolare secca.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="logo" style="margin-bottom:14px">
+          <div class="logo-mark"><span>SB</span></div>
+          <div class="logo-text" style="color:var(--crema)">SLEP<i style="color:var(--arancio)">BOLO</i></div>
+        </div>
+        <p style="max-width:36ch">Stanze e coinquilini per chi studia a Bologna. Prototipo — i dati mostrati sono di esempio.</p>
+      </div>
+      <div>
+        <h4>Studenti</h4>
+        <a href="#ricerca">Cerca una stanza</a>
+        <a href="#" onclick="apriProfilo();return false">Crea il profilo</a>
+        <a href="#how">Come funziona</a>
+      </div>
+      <div>
+        <h4>Chi affitta</h4>
+        <a href="#" onclick="apriPubblica();return false">Pubblica annuncio</a>
+        <a href="#">Guida al contratto</a>
+        <a href="#">Prezzi di zona</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 SLEPBOLO — progetto indipendente, non affiliato all'Università di Bologna.</span>
+      <span>Bologna, Italia</span>
+    </div>
+  </div>
+</footer>
+
+<!-- MODALE DETTAGLIO -->
+<div class="overlay" id="ov-det" onclick="if(event.target===this)chiudi('ov-det')">
+  <div class="modal" id="det-content"></div>
+</div>
+
+<!-- MODALE PUBBLICA -->
+<div class="overlay" id="ov-pub" onclick="if(event.target===this)chiudi('ov-pub')">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h2>Pubblica il tuo appartamento</h2><p>Chi cerca vede subito quante camere sono ancora libere.</p></div>
+      <button class="x" onclick="chiudi('ov-pub')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ok" id="ok-pub">Annuncio pubblicato! È già visibile nella ricerca qui sotto.</div>
+
+      <div class="form-sec">
+        <h4>L'appartamento</h4>
+        <div class="form-grid">
+          <div class="field wide"><label>Titolo annuncio</label><input id="p-titolo" placeholder="Es. Stanza singola in trilocale luminoso"></div>
+          <div class="field"><label>Zona</label><select id="p-zona"></select></div>
+          <div class="field"><label>Via (indicativa)</label><input id="p-via" placeholder="Es. Via Mascarella"></div>
+          <div class="field"><label>Camere totali</label><input type="number" id="p-tot" min="1" max="8" value="3"></div>
+          <div class="field"><label>Camere già occupate</label><input type="number" id="p-occ" min="0" max="7" value="2"></div>
+          <div class="field"><label>Tipo di stanza libera</label><select id="p-tipo"><option>Singola</option><option>Doppia</option></select></div>
+          <div class="field"><label>Piano / ascensore</label><input id="p-piano" placeholder="Es. 2° con ascensore"></div>
+        </div>
+      </div>
+
+      <div class="form-sec">
+        <h4>Soldi</h4>
+        <div class="form-grid">
+          <div class="field"><label>Affitto al mese (a persona)</label><input type="number" id="p-prezzo" value="380"></div>
+          <div class="field"><label>Spese</label><select id="p-spese"><option>Incluse nel prezzo</option><option>Escluse — circa 50 €/mese</option><option>Escluse — circa 80 €/mese</option></select></div>
+          <div class="field"><label>Cauzione</label><select id="p-cauz"><option>1 mensilità</option><option>2 mensilità</option><option>Nessuna</option></select></div>
+          <div class="field"><label>Contratto</label><select id="p-contr"><option>Registrato — studenti (3+2)</option><option>Registrato — transitorio</option><option>Da concordare</option></select></div>
+        </div>
+      </div>
+
+      <div class="form-sec">
+        <h4>Chi ci abita</h4>
+        <div class="form-grid">
+          <div class="field"><label>Casa di</label><select id="p-genere"><option value="misto">Ragazzi e ragazze</option><option value="ragazze">Solo ragazze</option><option value="ragazzi">Solo ragazzi</option></select></div>
+          <div class="field"><label>Disponibile da</label><select id="p-da"><option>Settembre 2026</option><option>Ottobre 2026</option><option>Gennaio 2027</option><option>Subito</option></select></div>
+          <div class="field"><label>Permanenza minima</label><select id="p-durata"><option value="3">3 mesi</option><option value="6" selected>6 mesi</option><option value="12">12 mesi</option></select></div>
+          <div class="field"><label>Note sui coinquilini</label><input id="p-coinq" placeholder="Es. 2 studentesse di Lettere, 22 e 23 anni"></div>
+          <div class="field wide"><label>Descrizione</label><textarea id="p-desc" placeholder="Com'è la casa, che aria si respira, cosa cercate in un coinquilino..."></textarea></div>
+        </div>
+      </div>
+
+      <div class="form-sec">
+        <h4>Cosa c'è</h4>
+        <div class="chips" id="p-serv">
+          <button class="chip on" data-v="Wi-Fi">Wi-Fi</button>
+          <button class="chip on" data-v="Lavatrice">Lavatrice</button>
+          <button class="chip on" data-v="Arredata">Arredata</button>
+          <button class="chip" data-v="Balcone">Balcone</button>
+          <button class="chip" data-v="Lavastoviglie">Lavastoviglie</button>
+          <button class="chip" data-v="Aria condizionata">Aria condizionata</button>
+          <button class="chip" data-v="Ammessi animali">Ammessi animali</button>
+          <button class="chip" data-v="Si può fumare">Si può fumare</button>
+          <button class="chip" data-v="Bici/garage">Bici / garage</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="chiudi('ov-pub')">Annulla</button>
+      <button class="btn btn-primary" onclick="pubblica()">Pubblica annuncio</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE PROFILO -->
+<div class="overlay" id="ov-prof" onclick="if(event.target===this)chiudi('ov-prof')">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head">
+      <div><h2>Il tuo profilo studente</h2><p>Chi affitta lo vede quando gli scrivi: meno messaggi a vuoto.</p></div>
+      <button class="x" onclick="chiudi('ov-prof')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ok" id="ok-prof">Profilo salvato. Ora i risultati sono ordinati sulla tua sede e sul tuo budget.</div>
+      <div class="form-grid">
+        <div class="field"><label>Nome</label><input id="u-nome" placeholder="Come ti chiami"></div>
+        <div class="field"><label>Età</label><input type="number" id="u-eta" value="21"></div>
+        <div class="field"><label>Corso di laurea</label><input id="u-corso" placeholder="Es. Ingegneria gestionale"></div>
+        <div class="field"><label>Anno</label><select id="u-anno"><option>1° triennale</option><option>2° triennale</option><option>3° triennale</option><option>1° magistrale</option><option>2° magistrale</option><option>Erasmus</option></select></div>
+        <div class="field"><label>Sede principale</label><select id="u-sede"><option>Zamboni / Centro</option><option>Ingegneria — Terracini</option><option>Agraria — Filippo Re</option><option>Economia — Belle Arti</option><option>Medicina — Sant'Orsola</option></select></div>
+        <div class="field"><label>Budget max / mese</label><input type="number" id="u-budget" value="420"></div>
+        <div class="field wide">
+          <label>Abitudini <span class="hint">— aiuta a trovare la casa giusta</span></label>
+          <div class="chips" id="u-abit">
+            <button class="chip" data-v="Non fumo">Non fumo</button>
+            <button class="chip" data-v="Fumo">Fumo</button>
+            <button class="chip" data-v="Studio a casa">Studio a casa</button>
+            <button class="chip" data-v="Rientro tardi">Rientro tardi</button>
+            <button class="chip" data-v="Cucino spesso">Cucino spesso</button>
+            <button class="chip" data-v="Ordinato/a">Ordinato/a</button>
+            <button class="chip" data-v="Ho un animale">Ho un animale</button>
+            <button class="chip" data-v="Torno a casa nei weekend">Weekend fuori</button>
+          </div>
+        </div>
+        <div class="field wide"><label>Due righe su di te</label><textarea id="u-bio" placeholder="Chi sei, cosa cerchi in una casa..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="chiudi('ov-prof')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaProfilo()">Salva profilo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ DATI (in memoria, demo) ============ */
+const SEDI = [
+  {nome:"Zamboni", x:54, y:57},
+  {nome:"Terracini", x:50, y:17},
+  {nome:"Agraria", x:60, y:44},
+  {nome:"Belle Arti", x:47, y:47},
+  {nome:"Sant'Orsola", x:69, y:63}
+];
+
+const ZONE = ["Bolognina","Cirenaica","Costa-Saragozza","Massarenti","Mazzini / Murri","Navile","Porta Saffi","San Donato","San Vitale","Santo Stefano","Zamboni / Centro","Barca","Corticella","Fiera"];
+
+let ANNUNCI = [
+  {id:1,titolo:"Singola in trilocale a due passi da Zamboni",zona:"Zamboni / Centro",via:"Via Mascarella",prezzo:480,spese:"Incluse nel prezzo",tot:3,occ:2,tipo:"Singola",genere:"misto",durata:12,da:"Settembre 2026",piano:"2° senza ascensore",cauzione:"2 mensilità",contratto:"Registrato — studenti (3+2)",x:52,y:52,
+   serv:["Wi-Fi","Lavatrice","Arredata","Contratto registrato","Balcone"],
+   coinq:[{n:"Giulia",e:23,c:"Lettere moderne"},{n:"Marta",e:22,c:"Scienze politiche"}],
+   desc:"Appartamento al secondo piano in una traversa di via Mascarella. Cinque minuti a piedi da via Zamboni, quindi la mattina si esce dieci minuti prima della lezione. Casa tranquilla ma non silenziosa: si cena spesso insieme.",
+   distanze:{"Zamboni / Centro":"5 min a piedi","Ingegneria — Terracini":"18 min in bici","Medicina — Sant'Orsola":"15 min a piedi"}},
+
+  {id:2,titolo:"Doppia in appartamento nuovo in Bolognina",zona:"Bolognina",via:"Via Fioravanti",prezzo:290,spese:"Escluse — circa 50 €/mese",tot:4,occ:2,tipo:"Doppia",genere:"misto",durata:6,da:"Ottobre 2026",piano:"4° con ascensore",cauzione:"1 mensilità",contratto:"Registrato — transitorio",x:47,y:28,
+   serv:["Wi-Fi","Lavatrice","Lavastoviglie","Arredata","Aria condizionata","Bici/garage","Contratto registrato"],
+   coinq:[{n:"Ahmed",e:24,c:"Ingegneria informatica"},{n:"Luca",e:22,c:"Statistica"}],
+   desc:"Palazzina ristrutturata vicino alla stazione. Due camere ancora libere su quattro, una doppia e una singola. Ottimo se studi a Terracini: dieci minuti di bici in piano.",
+   distanze:{"Ingegneria — Terracini":"10 min in bici","Zamboni / Centro":"20 min a piedi","Economia — Belle Arti":"14 min in bici"}},
+
+  {id:3,titolo:"Singola solo ragazze in Santo Stefano",zona:"Santo Stefano",via:"Via Castiglione",prezzo:520,spese:"Incluse nel prezzo",tot:3,occ:2,tipo:"Singola",genere:"ragazze",durata:12,da:"Settembre 2026",piano:"1° senza ascensore",cauzione:"2 mensilità",contratto:"Registrato — studenti (3+2)",x:56,y:63,
+   serv:["Wi-Fi","Lavatrice","Arredata","Balcone","Contratto registrato"],
+   coinq:[{n:"Sofia",e:25,c:"Medicina"},{n:"Elena",e:24,c:"Giurisprudenza"}],
+   desc:"Zona bellissima e silenziosa sotto i portici di Castiglione. Casa ordinata, si studia molto. Cerchiamo una ragazza che stia almeno un anno accademico intero.",
+   distanze:{"Zamboni / Centro":"12 min a piedi","Medicina — Sant'Orsola":"14 min a piedi","Economia — Belle Arti":"16 min a piedi"}},
+
+  {id:4,titolo:"Stanza in quadrilocale zona Massarenti",zona:"Massarenti",via:"Via Massarenti",prezzo:360,spese:"Escluse — circa 50 €/mese",tot:4,occ:3,tipo:"Singola",genere:"misto",durata:6,da:"Settembre 2026",piano:"3° con ascensore",cauzione:"1 mensilità",contratto:"Registrato — transitorio",x:70,y:60,
+   serv:["Wi-Fi","Lavatrice","Arredata","Balcone","Bici/garage"],
+   coinq:[{n:"Chiara",e:23,c:"Infermieristica"},{n:"Ilaria",e:22,c:"Farmacia"},{n:"Paolo",e:26,c:"Medicina"}],
+   desc:"Ultima camera libera. Casa di studenti dell'area medica, il Sant'Orsola è dietro l'angolo. Turni e orari strani sono la normalità qui, nessuno si lamenta.",
+   distanze:{"Medicina — Sant'Orsola":"6 min a piedi","Zamboni / Centro":"12 min in bici"}},
+
+  {id:5,titolo:"Due singole in casa indipendente a Murri",zona:"Mazzini / Murri",via:"Via Murri",prezzo:420,spese:"Escluse — circa 80 €/mese",tot:5,occ:3,tipo:"Singola",genere:"misto",durata:12,da:"Ottobre 2026",piano:"Villetta su due livelli",cauzione:"2 mensilità",contratto:"Registrato — studenti (3+2)",x:58,y:78,
+   serv:["Wi-Fi","Lavatrice","Lavastoviglie","Arredata","Balcone","Ammessi animali","Bici/garage"],
+   coinq:[{n:"Federico",e:25,c:"Architettura"},{n:"Anna",e:24,c:"Psicologia"},{n:"Nikola",e:23,c:"Erasmus — Economia"}],
+   desc:"Casa con giardino e tavolo grande. Due camere libere insieme, ideale se cercate in due. Un po' fuori dal centro ma la 13 passa ogni cinque minuti.",
+   distanze:{"Zamboni / Centro":"18 min in bus","Medicina — Sant'Orsola":"15 min in bici"}},
+
+  {id:6,titolo:"Singola economica in Cirenaica",zona:"Cirenaica",via:"Via Libia",prezzo:330,spese:"Incluse nel prezzo",tot:3,occ:2,tipo:"Singola",genere:"ragazzi",durata:3,da:"Subito",piano:"1° senza ascensore",cauzione:"1 mensilità",contratto:"Da concordare",x:64,y:47,
+   serv:["Wi-Fi","Lavatrice","Arredata","Si può fumare"],
+   coinq:[{n:"Matteo",e:22,c:"Ingegneria energetica"},{n:"Simone",e:23,c:"Informatica"}],
+   desc:"Camera libera anche per pochi mesi, perfetta per un semestre o per una sessione lunga. Quartiere vivo, mercato sotto casa, birreria all'angolo.",
+   distanze:{"Ingegneria — Terracini":"12 min in bici","Zamboni / Centro":"15 min a piedi"}},
+
+  {id:7,titolo:"Camera luminosa in Costa-Saragozza",zona:"Costa-Saragozza",via:"Via Saragozza",prezzo:450,spese:"Escluse — circa 50 €/mese",tot:4,occ:1,tipo:"Singola",genere:"ragazze",durata:12,da:"Settembre 2026",piano:"3° con ascensore",cauzione:"2 mensilità",contratto:"Registrato — studenti (3+2)",x:30,y:64,
+   serv:["Wi-Fi","Lavatrice","Lavastoviglie","Arredata","Balcone","Aria condizionata","Contratto registrato"],
+   coinq:[{n:"Beatrice",e:24,c:"Farmacia"}],
+   desc:"Appartamento appena ristrutturato: tre camere ancora da riempire, quindi si sceglie insieme chi entra. Sotto i portici di San Luca, in salita ma bellissimo.",
+   distanze:{"Zamboni / Centro":"20 min a piedi","Economia — Belle Arti":"18 min a piedi"}},
+
+  {id:8,titolo:"Posto in doppia low cost a San Donato",zona:"San Donato",via:"Via San Donato",prezzo:260,spese:"Incluse nel prezzo",tot:4,occ:3,tipo:"Doppia",genere:"ragazzi",durata:6,da:"Ottobre 2026",piano:"5° con ascensore",cauzione:"1 mensilità",contratto:"Registrato — transitorio",x:72,y:34,
+   serv:["Wi-Fi","Lavatrice","Arredata","Bici/garage"],
+   coinq:[{n:"Youssef",e:21,c:"Ingegneria civile"},{n:"Davide",e:22,c:"Ingegneria civile"},{n:"Andrea",e:23,c:"Chimica"}],
+   desc:"Il prezzo più basso della zona, camera doppia con l'altro posto già occupato. Autobus 25 diretto per Terracini, oppure venti minuti di bici.",
+   distanze:{"Ingegneria — Terracini":"8 min in bici","Zamboni / Centro":"22 min in bici"}},
+
+  {id:9,titolo:"Singola in appartamento silenzioso a Porta Saffi",zona:"Porta Saffi",via:"Via Andrea Costa",prezzo:390,spese:"Escluse — circa 50 €/mese",tot:3,occ:1,tipo:"Singola",genere:"misto",durata:6,da:"Gennaio 2027",piano:"2° con ascensore",cauzione:"1 mensilità",contratto:"Registrato — transitorio",x:26,y:52,
+   serv:["Wi-Fi","Lavatrice","Arredata","Balcone","Contratto registrato"],
+   coinq:[{n:"Riccardo",e:26,c:"Dottorando in Fisica"}],
+   desc:"Casa tranquilla, chi ci abita lavora in dipartimento e sta fuori tutto il giorno. Due camere libere da gennaio, buona per il secondo semestre.",
+   distanze:{"Zamboni / Centro":"14 min in bus","Economia — Belle Arti":"16 min in bici"}},
+
+  {id:10,titolo:"Stanza in casa grande al Navile",zona:"Navile",via:"Via di Corticella",prezzo:300,spese:"Incluse nel prezzo",tot:5,occ:4,tipo:"Singola",genere:"misto",durata:3,da:"Subito",piano:"Piano terra con corte",cauzione:"Nessuna",contratto:"Da concordare",x:40,y:20,
+   serv:["Wi-Fi","Lavatrice","Arredata","Ammessi animali","Si può fumare","Bici/garage"],
+   coinq:[{n:"Sara",e:24,c:"DAMS"},{n:"Tommaso",e:25,c:"Antropologia"},{n:"Lea",e:23,c:"Erasmus — DAMS"},{n:"Gio",e:27,c:"Fuori corso, lavora"}],
+   desc:"Casa rumorosa nel senso bello: cene, gente che passa, un gatto. Ultima camera. Se cerchi silenzio assoluto non è il posto giusto, e va benissimo dirlo subito.",
+   distanze:{"Ingegneria — Terracini":"14 min in bici","Zamboni / Centro":"25 min in bici"}},
+
+  {id:11,titolo:"Singola in bilocale condiviso zona Fiera",zona:"Fiera",via:"Via Stalingrado",prezzo:410,spese:"Incluse nel prezzo",tot:2,occ:1,tipo:"Singola",genere:"ragazze",durata:6,da:"Settembre 2026",piano:"6° con ascensore",cauzione:"1 mensilità",contratto:"Registrato — transitorio",x:57,y:22,
+   serv:["Wi-Fi","Lavatrice","Lavastoviglie","Arredata","Aria condizionata","Balcone","Contratto registrato"],
+   coinq:[{n:"Valentina",e:26,c:"Magistrale in Economia"}],
+   desc:"Solo in due in casa, quindi bagno quasi sempre libero. Palazzo moderno con portineria. Va bene per chi vuole studiare senza troppo caos.",
+   distanze:{"Economia — Belle Arti":"12 min in bici","Ingegneria — Terracini":"9 min in bici"}},
+
+  {id:12,titolo:"Due camere in villetta alla Barca",zona:"Barca",via:"Via Tolmino",prezzo:280,spese:"Escluse — circa 50 €/mese",tot:4,occ:2,tipo:"Singola",genere:"misto",durata:12,da:"Ottobre 2026",piano:"Villetta con giardino",cauzione:"1 mensilità",contratto:"Registrato — studenti (3+2)",x:20,y:80,
+   serv:["Wi-Fi","Lavatrice","Arredata","Balcone","Ammessi animali","Bici/garage"],
+   coinq:[{n:"Emanuele",e:23,c:"Agraria"},{n:"Nicolò",e:22,c:"Scienze motorie"}],
+   desc:"Zona residenziale, aria buona e affitti bassi. Il Treno della Barca è a due passi. Serve la bici o il 21, ma si risparmiano cento euro al mese rispetto al centro.",
+   distanze:{"Agraria — Filippo Re":"20 min in bici","Zamboni / Centro":"25 min in bici"}}
+];
+
+/* ============ STATO ============ */
+let stato = {vista:"griglia", genere:"", tipo:"", durata:0, selezionato:null};
+let profilo = null;
+
+/* ============ UTILITÀ ============ */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const libere = a => a.tot - a.occ;
+const camere = n => n === 1 ? "1 camera libera" : n + " camere libere";
+const gradiente = a => {
+  const g = [
+    "linear-gradient(135deg,#A2001D,#E4572E)",
+    "linear-gradient(135deg,#E4572E,#F0A868)",
+    "linear-gradient(135deg,#7A0016,#A2001D)",
+    "linear-gradient(135deg,#B5651D,#E4572E)",
+    "linear-gradient(135deg,#8C3B2E,#D9744F)"
+  ];
+  return g[a.id % g.length];
+};
+const iniz = n => n.trim().charAt(0).toUpperCase();
+
+function popolaSelect(){
+  const opts = ZONE.slice().sort().map(z=>`<option>${z}</option>`).join("");
+  $("#sb-zona").insertAdjacentHTML("beforeend",opts);
+  $("#f-zona").insertAdjacentHTML("beforeend",opts);
+  $("#p-zona").innerHTML = opts;
+}
+
+/* chips generiche */
+function initChips(sel, key, multi){
+  $$(sel+" .chip").forEach(c=>{
+    c.onclick = ()=>{
+      if(multi){ c.classList.toggle("on"); }
+      else{
+        $$(sel+" .chip").forEach(o=>o.classList.remove("on"));
+        c.classList.add("on");
+        if(key){ stato[key] = key==="durata" ? +c.dataset.v : c.dataset.v; render(); }
+      }
+    };
+  });
+}
+
+/* ============ FILTRI + RENDER ============ */
+function filtra(){
+  const maxP = +$("#f-prezzo").value;
+  const zona = $("#f-zona").value;
+  const serv = $$(".f-serv:checked").map(c=>c.value);
+  return ANNUNCI.filter(a=>{
+    if(libere(a) <= 0) return false;
+    if(a.prezzo > maxP) return false;
+    if(zona && a.zona !== zona) return false;
+    if(stato.genere && a.genere !== stato.genere) return false;
+    if(stato.tipo && a.tipo !== stato.tipo) return false;
+    if(stato.durata && a.durata > stato.durata) return false;
+    for(const s of serv){
+      if(s === "Spese incluse"){ if(a.spese !== "Incluse nel prezzo") return false; }
+      else if(!a.serv.includes(s)) return false;
+    }
+    return true;
+  });
+}
+
+function ordina(lista){
+  const o = $("#ordina").value;
+  const l = lista.slice();
+  if(o==="prezzo-asc") l.sort((a,b)=>a.prezzo-b.prezzo);
+  if(o==="prezzo-desc") l.sort((a,b)=>b.prezzo-a.prezzo);
+  if(o==="distanza" || (o==="rilevanza" && profilo)){
+    const sede = profilo ? profilo.sede : $("#sb-sede").value;
+    if(sede) l.sort((a,b)=> (a.distanze[sede]?0:1) - (b.distanze[sede]?0:1));
+  }
+  return l;
+}
+
+function cardHTML(a){
+  const dots = Array.from({length:a.tot},(_,i)=>`<div class="dot ${i>=a.occ?'free':''}"></div>`).join("");
+  const tags = [];
+  if(a.spese==="Incluse nel prezzo") tags.push(`<span class="tag">Spese incluse</span>`);
+  if(a.contratto.startsWith("Registrato")) tags.push(`<span class="tag">Contratto registrato</span>`);
+  if(libere(a)===1) tags.push(`<span class="tag hot">Ultima camera</span>`);
+  if(libere(a)>=3) tags.push(`<span class="tag hot">${camere(libere(a))}</span>`);
+  if(a.durata<=3) tags.push(`<span class="tag">Anche breve periodo</span>`);
+  const gen = {ragazze:"Solo ragazze",ragazzi:"Solo ragazzi",misto:"Casa mista"}[a.genere];
+  return `<article class="card" onclick="apriDettaglio(${a.id})">
+    <div class="card-img" style="background:${gradiente(a)}">
+      <div class="glyph">${a.zona.split(" ")[0].slice(0,3).toUpperCase()}</div>
+      <div class="zona-tag">${a.zona}</div>
+      <div class="prezzo-tag">${a.prezzo} €<span style="font-weight:500;font-size:11px">/mese</span></div>
+    </div>
+    <div class="card-body">
+      <h3>${a.titolo}</h3>
+      <div class="meta"><span>${a.tipo}</span><span>${gen}</span><span>da ${a.da}</span></div>
+      <div class="rooms"><div class="dots">${dots}</div><span>${camere(libere(a))} su ${a.tot}</span></div>
+      <div class="tagrow">${tags.join("")}</div>
+    </div>
+  </article>`;
+}
+
+function render(){
+  $("#f-prezzo-val").textContent = $("#f-prezzo").value + " €";
+  const lista = ordina(filtra());
+  $("#conteggio").textContent = lista.length
+    ? `${lista.length} appartamenti con almeno una camera libera` + (profilo?` · ordinati su ${profilo.sede}`:"")
+    : "Nessun risultato con questi filtri";
+
+  $("#grid").innerHTML = lista.length
+    ? lista.map(cardHTML).join("")
+    : `<div class="empty" style="grid-column:1/-1"><b>Nessuna stanza trovata</b>Prova ad alzare il prezzo massimo o ad allargare la zona.</div>`;
+
+  renderMappa(lista);
+  aggiornaStat();
+}
+
+function aggiornaStat(){
+  $("#st-annunci").textContent = ANNUNCI.length;
+  $("#st-camere").textContent = ANNUNCI.reduce((s,a)=>s+libere(a),0);
+  $("#st-prezzo").textContent = Math.round(ANNUNCI.reduce((s,a)=>s+a.prezzo,0)/ANNUNCI.length) + " €";
+}
+
+/* ============ MAPPA ============ */
+function renderSedi(){
+  $("#sedi").innerHTML = SEDI.map(s=>`
+    <g transform="translate(${s.x*6},${s.y*5.2})">
+      <circle r="7" fill="#2E5FA3" stroke="#fff" stroke-width="2.5"/>
+      <text x="0" y="-13" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5"
+            font-weight="700" fill="#2E5FA3" stroke="#F3EADB" stroke-width="3" paint-order="stroke">${s.nome}</text>
+    </g>`).join("");
+}
+
+function renderMappa(lista){
+  const m = $("#mappa");
+  m.querySelectorAll(".pin").forEach(p=>p.remove());
+  lista.forEach(a=>{
+    const d = document.createElement("div");
+    d.className = "pin" + (stato.selezionato===a.id?" on":"");
+    d.style.left = a.x+"%"; d.style.top = a.y+"%";
+    d.innerHTML = `<div class="pin-body">${a.prezzo} €</div>`;
+    d.onclick = ()=>{ stato.selezionato = a.id; renderMappa(lista); apriDettaglio(a.id); };
+    m.appendChild(d);
+  });
+
+  $("#mappa-side").innerHTML = lista.length ? lista.map(a=>`
+    <div class="mini ${stato.selezionato===a.id?'on':''}" onclick="apriDettaglio(${a.id})">
+      <div class="mini-img" style="background:${gradiente(a)}"></div>
+      <div>
+        <b>${a.titolo}</b>
+        <span>${a.zona} · ${camere(libere(a))}</span><br>
+        <span class="p">${a.prezzo} €/mese</span>
+      </div>
+    </div>`).join("") : `<div class="empty"><b>Nessun risultato</b></div>`;
+}
+
+/* ============ DETTAGLIO ============ */
+function apriDettaglio(id){
+  const a = ANNUNCI.find(x=>x.id===id);
+  const dots = Array.from({length:a.tot},(_,i)=>`<div class="dot ${i>=a.occ?'free':''}"></div>`).join("");
+  const gen = {ragazze:"Solo ragazze",ragazzi:"Solo ragazzi",misto:"Ragazzi e ragazze"}[a.genere];
+  const dist = Object.entries(a.distanze).map(([k,v])=>`<li><b>${k}</b><span>${v}</span></li>`).join("");
+
+  $("#det-content").innerHTML = `
+    <div class="modal-head">
+      <div><h2>${a.titolo}</h2><p>${a.via}, ${a.zona} · ${a.piano}</p></div>
+      <button class="x" onclick="chiudi('ov-det')">✕</button>
+    </div>
+    <div class="det-hero" style="background:${gradiente(a)}">
+      <div class="glyph">${a.zona.split(" ")[0].slice(0,4).toUpperCase()}</div>
+      <div class="det-price"><b>${a.prezzo} €</b><span>/mese · ${a.spese.toLowerCase()}</span></div>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--crema);border-radius:12px">
+        <div class="dots">${dots}</div>
+        <div style="font-size:14.5px;font-weight:650">${camere(libere(a))} su ${a.tot} · ${a.occ === 1 ? "1 già occupata" : a.occ + " già occupate"}</div>
+      </div>
+
+      <div class="det-grid">
+        <div class="det-box"><label>Tipo stanza</label><b>${a.tipo}</b></div>
+        <div class="det-box"><label>Casa di</label><b>${gen}</b></div>
+        <div class="det-box"><label>Disponibile da</label><b>${a.da}</b></div>
+        <div class="det-box"><label>Permanenza minima</label><b>${a.durata} mesi</b></div>
+        <div class="det-box"><label>Cauzione</label><b>${a.cauzione}</b></div>
+        <div class="det-box"><label>Contratto</label><b>${a.contratto}</b></div>
+      </div>
+
+      <div class="det-sec">
+        <h4>La casa</h4>
+        <p style="font-size:15px;color:var(--grigio)">${a.desc}</p>
+      </div>
+
+      <div class="det-sec">
+        <h4>Chi ci abita già</h4>
+        <div class="coinq">
+          ${a.coinq.map(c=>`<div class="coinq-card"><div class="avatar">${iniz(c.n)}</div><b>${c.n}, ${c.e}</b><span>${c.c}</span></div>`).join("")}
+          ${Array.from({length:libere(a)},()=>`<div class="coinq-card" style="border:1.5px dashed var(--linea);background:transparent"><div class="avatar" style="background:var(--linea);color:var(--grigio)">?</div><b>Camera libera</b><span>potresti essere tu</span></div>`).join("")}
+        </div>
+      </div>
+
+      <div class="det-sec">
+        <h4>Distanza dalle sedi</h4>
+        <ul class="lista uno">${dist}</ul>
+      </div>
+
+      <div class="det-sec">
+        <h4>Cosa c'è in casa</h4>
+        <ul class="lista">${a.serv.map(s=>`<li>${s}</li>`).join("")}</ul>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="chiudi('ov-det')">Chiudi</button>
+      <button class="btn btn-ghost" onclick="alert('Prototipo: qui si salverebbe tra i preferiti.')">♡ Salva</button>
+      <button class="btn btn-primary" onclick="alert('Prototipo: qui si aprirebbe la chat con chi ha pubblicato l\\'annuncio.')">Contatta la casa</button>
+    </div>`;
+  apri("ov-det");
+}
+
+/* ============ MODALI ============ */
+function apri(id){ $("#"+id).classList.add("open"); document.body.style.overflow="hidden"; }
+function chiudi(id){ $("#"+id).classList.remove("open"); document.body.style.overflow=""; }
+function apriPubblica(){ $("#ok-pub").classList.remove("show"); apri("ov-pub"); }
+function apriProfilo(){ $("#ok-prof").classList.remove("show"); apri("ov-prof"); }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") $$(".overlay.open").forEach(o=>chiudi(o.id)); });
+
+/* ============ AZIONI ============ */
+function pubblica(){
+  const tot = +$("#p-tot").value, occ = +$("#p-occ").value;
+  if(!$("#p-titolo").value.trim()){ alert("Serve almeno un titolo per l'annuncio."); return; }
+  if(occ >= tot){ alert("Se tutte le camere sono occupate non c'è nulla da pubblicare — controlla i numeri."); return; }
+  const serv = $$("#p-serv .chip.on").map(c=>c.dataset.v);
+  if($("#p-contr").value.startsWith("Registrato")) serv.push("Contratto registrato");
+  ANNUNCI.unshift({
+    id: Date.now(),
+    titolo: $("#p-titolo").value.trim(),
+    zona: $("#p-zona").value,
+    via: $("#p-via").value || "Zona " + $("#p-zona").value,
+    prezzo: +$("#p-prezzo").value,
+    spese: $("#p-spese").value,
+    tot, occ,
+    tipo: $("#p-tipo").value,
+    genere: $("#p-genere").value,
+    durata: +$("#p-durata").value,
+    da: $("#p-da").value,
+    piano: $("#p-piano").value || "Non indicato",
+    cauzione: $("#p-cauz").value,
+    contratto: $("#p-contr").value,
+    x: 20 + Math.random()*60, y: 20 + Math.random()*60,
+    serv,
+    coinq: Array.from({length:occ},(_,i)=>({n:"Coinquilino "+(i+1),e:23,c:$("#p-coinq").value || "Studente UniBo"})),
+    desc: $("#p-desc").value || "Nessuna descrizione inserita.",
+    distanze: {"Zamboni / Centro":"da calcolare"}
+  });
+  $("#ok-pub").classList.add("show");
+  render();
+  setTimeout(()=>{ chiudi("ov-pub"); document.getElementById("ricerca").scrollIntoView({behavior:"smooth"}); }, 1100);
+}
+
+function salvaProfilo(){
+  profilo = {
+    nome: $("#u-nome").value || "Studente",
+    sede: $("#u-sede").value,
+    budget: +$("#u-budget").value,
+    abitudini: $$("#u-abit .chip.on").map(c=>c.dataset.v)
+  };
+  $("#f-prezzo").value = Math.min(700, Math.max(250, profilo.budget));
+  $("#ok-prof").classList.add("show");
+  render();
+  setTimeout(()=>chiudi("ov-prof"), 1200);
+}
+
+function setVista(v){
+  stato.vista = v;
+  $("#vista-griglia").style.display = v==="griglia" ? "" : "none";
+  $("#vista-mappa").style.display = v==="mappa" ? "" : "none";
+  $("#tab-griglia").classList.toggle("on", v==="griglia");
+  $("#tab-mappa").classList.toggle("on", v==="mappa");
+}
+
+function vaiARicerca(){
+  const z = $("#sb-zona").value;
+  if(z) $("#f-zona").value = z;
+  render();
+  document.getElementById("ricerca").scrollIntoView({behavior:"smooth"});
+}
+
+function resetFiltri(){
+  $("#f-prezzo").value = 700;
+  $("#f-zona").value = "";
+  $$(".f-serv").forEach(c=>c.checked=false);
+  stato.genere=""; stato.tipo=""; stato.durata=0;
+  ["#f-genere","#f-tipo","#f-durata"].forEach(s=>{
+    $$(s+" .chip").forEach((c,i)=>c.classList.toggle("on", i===0));
+  });
+  render();
+}
+
+/* nav */
+$$(".nav-links button[data-view]").forEach(b=>{
+  b.onclick = ()=>{
+    $$(".nav-links button").forEach(o=>o.classList.remove("on"));
+    b.classList.add("on");
+    document.getElementById(b.dataset.view==="cerca"?"ricerca":"how").scrollIntoView({behavior:"smooth"});
+  };
+});
+
+/* ============ INIT ============ */
+popolaSelect();
+initChips("#f-genere","genere",false);
+initChips("#f-tipo","tipo",false);
+initChips("#f-durata","durata",false);
+initChips("#p-serv",null,true);
+initChips("#u-abit",null,true);
+renderSedi();
+render();
+</script>
+</body>
+</html>

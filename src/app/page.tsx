@@ -4,6 +4,8 @@ import { getAnnunci } from "@/lib/data";
 import { camereLibere, prezzoDa } from "@/lib/types";
 import { HomeSearch } from "@/components/home-search";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const annunci = await getAnnunci();
   const camereTot = annunci.reduce((s, a) => s + camereLibere(a), 0);

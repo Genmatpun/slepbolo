@@ -7,6 +7,7 @@ import { AnnuncioCard } from "@/components/annuncio-card";
 import { MappaView } from "@/components/mappa-view";
 
 export const metadata = { title: "Cerca stanza — SLEPBOLO" };
+export const dynamic = "force-dynamic";
 
 export default async function CercaPage({
   searchParams,

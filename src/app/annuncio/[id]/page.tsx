@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getAnnuncio, getAnnunci } from "@/lib/data";
+import { getAnnuncio } from "@/lib/data";
 import { camereLibere, prezzoDa } from "@/lib/types";
 import { distanzeSedi } from "@/lib/constants";
 import { RoomsIndicator } from "@/components/rooms-indicator";
@@ -9,10 +9,7 @@ import { iniziale } from "@/lib/utils";
 import { ContattaCasa } from "@/components/contatta-casa";
 import { SegnalaAnnuncio } from "@/components/segnala-annuncio";
 
-export async function generateStaticParams() {
-  const annunci = await getAnnunci();
-  return annunci.map((a) => ({ id: a.id }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function AnnuncioPage({
   params,

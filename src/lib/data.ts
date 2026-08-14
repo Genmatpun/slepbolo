@@ -1,6 +1,7 @@
 import "server-only";
 import { DEMO_ANNUNCI } from "./demo-data";
-import { createClient, supabaseConfigurato } from "./supabase/server";
+import { supabaseConfigurato } from "./supabase/server";
+import { createPublicClient } from "./supabase/public";
 import type { Annuncio } from "./types";
 
 /**
@@ -10,7 +11,7 @@ import type { Annuncio } from "./types";
 export async function getAnnunci(): Promise<Annuncio[]> {
   if (!supabaseConfigurato()) return DEMO_ANNUNCI;
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("apartments")
     .select("*, rooms(*), housemates(*)")
@@ -26,7 +27,7 @@ export async function getAnnuncio(id: string): Promise<Annuncio | null> {
     return DEMO_ANNUNCI.find((a) => a.id === id) ?? null;
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("apartments")
     .select("*, rooms(*), housemates(*)")

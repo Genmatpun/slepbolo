@@ -35,25 +35,25 @@ export function AnnuncioCard({ annuncio }: { annuncio: Annuncio }) {
   return (
     <Link
       href={`/annuncio/${annuncio.id}`}
-      className="group flex flex-col overflow-hidden rounded-[--radius-lg] border border-linea bg-carta transition duration-200 hover:-translate-y-[3px] hover:border-grigio hover:shadow-[var(--shadow-alta)]"
+      className="group flex flex-col overflow-hidden border-2 border-inchiostro bg-carta transition duration-200 hover:-translate-y-[3px] hover:shadow-[var(--shadow-alta)]"
     >
       <div
         className="relative grid h-[168px] place-items-center"
         style={{ background: gradiente(annuncio.id) }}
       >
-        <span className="text-[44px] font-extrabold tracking-[-0.06em] text-white/[0.28]">
+        <span className="text-[74px] font-black tracking-[-0.08em] text-white/[0.22]">
           {glyph}
         </span>
-        <span className="absolute left-3 top-3 rounded-[--radius-pill] bg-carta/95 px-[11px] py-[5px] text-[11.5px] font-bold tracking-[0.02em]">
+        <span className="absolute left-3 top-3 bg-crema px-[10px] py-[5px] text-[11px] font-extrabold uppercase tracking-[0.06em]">
           {annuncio.zona}
         </span>
-        <span className="absolute bottom-3 right-3 rounded-[--radius-pill] bg-inchiostro px-3 py-1.5 text-sm font-bold text-crema">
+        <span className="absolute bottom-3 right-3 bg-inchiostro px-3 py-1.5 text-base font-black tracking-[-0.03em] text-crema">
           {prezzo} €<span className="text-[11px] font-medium">/mese</span>
         </span>
       </div>
 
       <div className="flex flex-1 flex-col gap-[9px] p-4 pb-[18px]">
-        <h3 className="text-[16.5px] leading-[1.25] font-bold tracking-[-0.02em]">
+        <h3 className="text-[19px] leading-[1.08] font-extrabold tracking-[-0.035em]">
           {annuncio.titolo}
         </h3>
         <div className="flex flex-wrap gap-x-3 gap-y-[5px] text-[13px] text-grigio">

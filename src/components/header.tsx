@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-[60] border-b border-linea bg-crema/[0.88] backdrop-blur-[14px] backdrop-saturate-[1.8]">
+    <header className="sticky top-0 z-[60] border-b-2 border-inchiostro bg-crema/[0.9] backdrop-blur-[14px] backdrop-saturate-[1.8]">
       <div className="mx-auto flex h-[68px] max-w-[1240px] items-center justify-between gap-6 px-5 sm:px-6">
         <Link href="/" aria-label="SLEPBOLO — home">
           <Logo />

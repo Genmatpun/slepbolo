@@ -41,7 +41,7 @@ export default async function AnnuncioPage({
         <span className="text-[76px] font-extrabold tracking-[-0.07em] text-white/25">
           {a.zona.slice(0, 3).toUpperCase()}
         </span>
-        <div className="absolute bottom-5 right-5 rounded-[14px] bg-carta px-4 py-2.5 shadow-[var(--shadow-morbida)]">
+        <div className="absolute bottom-5 right-5 border-2 border-inchiostro bg-carta px-4 py-2.5">
           <b className="text-[24px] tracking-[-0.03em]">{prezzo} €</b>
           <span className="block text-[12.5px] text-grigio">al mese · {speseLabel}</span>
         </div>
@@ -84,7 +84,7 @@ export default async function AnnuncioPage({
           {a.housemates.map((h) => (
             <div
               key={h.id}
-              className="min-w-[150px] flex-1 rounded-xl bg-crema p-3.5"
+              className="min-w-[150px] flex-1 border border-linea bg-crema p-3.5"
             >
               <div className="mb-2 grid h-8 w-8 place-items-center rounded-full bg-arancio text-[13px] font-bold text-white">
                 {iniziale(h.nome_visualizzato)}
@@ -99,7 +99,7 @@ export default async function AnnuncioPage({
           {Array.from({ length: libere }, (_, i) => (
             <div
               key={`libera-${i}`}
-              className="grid min-w-[150px] flex-1 place-items-center rounded-xl border-[1.5px] border-dashed border-arancio/50 p-3.5 text-center"
+              className="grid min-w-[150px] flex-1 place-items-center border-2 border-dashed border-arancio/50 p-3.5 text-center"
             >
               <span className="text-[13px] font-semibold text-arancio">
                 Camera libera
@@ -115,7 +115,7 @@ export default async function AnnuncioPage({
       {/* DISTANZE */}
       {distanze.length > 0 && (
         <Section titolo="Distanza dalle sedi UniBo">
-          <ul className="grid gap-px overflow-hidden rounded-xl border border-linea">
+          <ul className="grid gap-px overflow-hidden border-2 border-inchiostro">
             {distanze.map((d) => (
               <li
                 key={d.sede.key}
@@ -156,7 +156,7 @@ export default async function AnnuncioPage({
 
 function Box({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-crema px-4 py-3">
+    <div className="border border-linea bg-crema px-4 py-3">
       <label className="mb-0.5 block text-[11px] font-bold uppercase tracking-[0.08em] text-grigio">
         {label}
       </label>

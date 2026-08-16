@@ -65,9 +65,9 @@ export default async function HomePage() {
             {PASSI.map((p, i) => (
               <div
                 key={i}
-                className="rounded-[--radius-lg] border border-linea bg-carta p-6"
+                className="border-2 border-inchiostro bg-carta p-6"
               >
-                <div className="mb-3.5 grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-rosso text-[15px] font-extrabold text-white">
+                <div className="mb-3.5 grid h-[34px] w-[34px] place-items-center bg-rosso text-[15px] font-black text-white">
                   {i + 1}
                 </div>
                 <h3 className="mb-[7px] text-[17px]">{p.titolo}</h3>

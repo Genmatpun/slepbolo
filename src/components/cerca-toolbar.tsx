@@ -10,13 +10,13 @@ export function CercaToolbar() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex rounded-[--radius-pill] border border-linea bg-carta p-[3px]">
+      <div className="flex border-2 border-inchiostro bg-carta p-[3px]">
         {(["griglia", "mappa"] as const).map((v) => (
           <button
             key={v}
             onClick={() => set({ vista: v === "griglia" ? null : v })}
             className={cn(
-              "rounded-[--radius-pill] px-4 py-2 text-[13px] font-semibold capitalize transition",
+              "px-4 py-2 text-[13px] font-bold capitalize transition",
               vista === v ? "bg-inchiostro text-crema" : "text-grigio",
             )}
           >
@@ -28,7 +28,7 @@ export function CercaToolbar() {
       <select
         value={ordina}
         onChange={(e) => set({ ordina: e.target.value === "rilevanza" ? null : e.target.value })}
-        className="rounded-[10px] border-[1.5px] border-linea bg-carta px-3 py-2 text-[13px] font-semibold outline-none focus:border-rosso"
+        className="border-2 border-linea bg-carta px-3 py-2 text-[13px] font-bold outline-none focus:border-inchiostro"
         aria-label="Ordina i risultati"
       >
         <option value="rilevanza">Ordina: consigliati</option>

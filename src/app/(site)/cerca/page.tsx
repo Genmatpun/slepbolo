@@ -44,7 +44,7 @@ export default async function CercaPage({
           {filtri.vista === "mappa" ? (
             <MappaView annunci={risultati} />
           ) : risultati.length === 0 ? (
-            <div className="rounded-[--radius-lg] border border-linea bg-carta px-5 py-[70px] text-center text-grigio">
+            <div className="border-2 border-inchiostro bg-carta px-5 py-[70px] text-center text-grigio">
               <b className="mb-1.5 block text-[19px] text-inchiostro">
                 Nessuna stanza trovata
               </b>

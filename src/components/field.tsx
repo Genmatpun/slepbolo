@@ -27,7 +27,7 @@ export function Field({
 }
 
 export const inputClass =
-  "rounded-[11px] border-[1.5px] border-linea bg-crema px-3.5 py-[11px] text-[14.5px] outline-none transition focus:border-rosso focus:bg-carta";
+  "border-2 border-linea bg-crema px-3.5 py-[11px] text-[14.5px] outline-none transition focus:border-inchiostro focus:bg-carta";
 
 /** Chip selezionabili (toggle). */
 export function ChipToggle({
@@ -44,8 +44,8 @@ export function ChipToggle({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-[--radius-pill] border-[1.5px] px-3 py-[7px] text-[13px] font-semibold transition",
-        attivo ? "border-rosso bg-rosso text-white" : "border-linea bg-crema hover:border-grigio",
+        "border-2 px-3 py-[7px] text-[13px] font-bold transition",
+        attivo ? "border-inchiostro bg-inchiostro text-crema" : "border-linea bg-crema hover:border-grigio",
       )}
     >
       {children}

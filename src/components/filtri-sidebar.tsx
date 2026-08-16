@@ -24,7 +24,7 @@ export function FiltriSidebar() {
   const serviziSel = get("servizi").split(",").filter(Boolean);
 
   return (
-    <aside className="rounded-[--radius-lg] border border-linea bg-carta p-5 shadow-[var(--shadow-morbida)] lg:sticky lg:top-[88px]">
+    <aside className="border-2 border-inchiostro bg-carta p-5 lg:sticky lg:top-[88px]">
       <h3 className="text-[15px] font-bold">Filtri</h3>
 
       <Group label="Prezzo massimo">
@@ -48,7 +48,7 @@ export function FiltriSidebar() {
         <select
           value={get("zona")}
           onChange={(e) => set({ zona: e.target.value || null })}
-          className="w-full rounded-[10px] border-[1.5px] border-linea bg-crema px-3 py-2.5 text-sm font-semibold outline-none focus:border-rosso"
+          className="w-full border-2 border-linea bg-crema px-3 py-2.5 text-sm font-semibold outline-none focus:border-inchiostro"
         >
           <option value="">Tutte le zone</option>
           {[...ZONE_BOLOGNA].sort().map((z) => (
@@ -171,9 +171,9 @@ function Chips({
             key={o.v || "all"}
             onClick={() => onPick(o.v)}
             className={cn(
-              "rounded-[--radius-pill] border-[1.5px] px-3 py-[7px] text-[13px] font-semibold transition",
+              "border-2 px-3 py-[7px] text-[13px] font-bold transition",
               on
-                ? "border-rosso bg-rosso text-white"
+                ? "border-inchiostro bg-inchiostro text-crema"
                 : "border-linea bg-crema hover:border-grigio",
             )}
           >

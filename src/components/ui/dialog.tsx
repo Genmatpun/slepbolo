@@ -18,7 +18,7 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-inchiostro/55 backdrop-blur-[3px] data-[state=open]:animate-in data-[state=open]:fade-in" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed left-1/2 top-1/2 z-[101] w-[calc(100%-32px)] max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[26px] bg-carta shadow-[var(--shadow-alta)] focus:outline-none",
+          "fixed left-1/2 top-1/2 z-[101] w-[calc(100%-32px)] max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-hidden border-2 border-inchiostro bg-carta shadow-[var(--shadow-alta)] focus:outline-none",
           className,
         )}
         {...props}
@@ -26,7 +26,7 @@ export function DialogContent({
         {children}
         <DialogPrimitive.Close
           aria-label="Chiudi"
-          className="absolute right-5 top-5 grid h-[34px] w-[34px] place-items-center rounded-full bg-crema text-[17px] text-grigio transition hover:bg-linea"
+          className="absolute right-5 top-5 grid h-[34px] w-[34px] place-items-center bg-crema text-[17px] text-grigio transition hover:bg-linea"
         >
           ✕
         </DialogPrimitive.Close>

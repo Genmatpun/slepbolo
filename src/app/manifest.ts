@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "SLEPBOLO",
     description:
       "Trova stanze in appartamenti condivisi a Bologna e scopri chi ci abita già. Solo studenti, solo Bologna.",
-    start_url: "/app",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

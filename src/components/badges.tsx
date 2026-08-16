@@ -14,9 +14,9 @@ export function Tag({
   return (
     <span
       className={cn(
-        "rounded-[6px] border px-[9px] py-1 text-[11.5px] font-semibold",
+        "border px-[9px] py-1 text-[11.5px] font-bold",
         hot
-          ? "border-arancio/30 bg-arancio/[0.12] text-[#B23A17]"
+          ? "border-arancio/35 bg-arancio/[0.12] text-[#B23A17]"
           : "border-linea bg-crema text-grigio",
         className,
       )}
@@ -49,7 +49,7 @@ export function BadgeVerificato({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-[--radius-pill] border border-verde/30 bg-verde/[0.1] px-2.5 py-1 text-[11.5px] font-bold text-verde",
+        "inline-flex items-center gap-1 border border-verde/30 bg-verde/[0.12] px-2.5 py-1 text-[11.5px] font-bold text-verde",
         className,
       )}
       title="Registrato con mail @studio.unibo.it"

@@ -38,6 +38,12 @@ export default async function HomePage() {
 
           <HomeSearch />
 
+          <div className="mt-4">
+            <Link href="/app" className="text-sm font-semibold text-rosso underline underline-offset-2">
+              Oppure prova l&apos;app mobile →
+            </Link>
+          </div>
+
           <div className="mt-[34px] flex flex-wrap gap-x-[34px] gap-y-4">
             <Stat valore={String(annunci.length)} etichetta="annunci attivi" />
             <Stat valore={String(camereTot)} etichetta="camere libere ora" />

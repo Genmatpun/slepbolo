@@ -1,8 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
-import { PwaInstall } from "@/components/pwa-install";
 
 export const metadata: Metadata = {
   title: "SLEPBOLO — Trova il tuo coinquilino a Bologna",
@@ -30,12 +27,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it">
-      <body>
-        <Header />
-        <main className="min-h-[70vh]">{children}</main>
-        <Footer />
-        <PwaInstall />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 import { ZONE_BOLOGNA, SEDI_UNIBO } from "@/lib/constants";
+import { MappaBologna } from "./mappa-bologna";
 
 // ============================================================
 // SLEPBOLO Mobile — app iOS-style (design "SLEPBOLO Mobile.dc.html")
@@ -293,17 +294,6 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
       `width:${size}px;height:${size}px;flex:none;display:grid;place-items:center;background:#1b1815;color:#faf3e7;font-size:${Math.round(size * 0.4)}px;font-weight:800`,
     );
 
-  // ---- projection mappa ----
-  const latB = [44.474, 44.528],
-    lngB = [11.3, 11.378];
-  const px = (p: { lat: number; lng: number }) => {
-    const fx = (p.lng - lngB[0]) / (lngB[1] - lngB[0]),
-      fy = 1 - (p.lat - latB[0]) / (latB[1] - latB[0]);
-    const x = 30 + Math.max(0, Math.min(1, fx)) * (402 - 60);
-    const y = 118 + Math.max(0, Math.min(1, fy)) * (600 - 118);
-    return `left:${x}px;top:${y}px`;
-  };
-
   const tabDefs: [string, string][] = [
     ["scopri", "Scopri"],
     ["cerca", "Cerca"],
@@ -536,25 +526,8 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
               {/* MAPPA */}
               {tab === "mappa" && (
                 <div style={css("height:100%;position:relative;background:#f0e7d6")}>
-                  <div style={css("position:absolute;inset:0;background-image:linear-gradient(rgba(27,24,21,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(27,24,21,.07) 1px,transparent 1px);background-size:46px 46px")} />
-                  {SEDI.map((s) => (
-                    <div key={s.nome} style={css(`position:absolute;${px(s)};transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;opacity:.75`)}>
-                      <span style={css("width:9px;height:9px;background:#1b1815;display:block")} />
-                      <span style={css("font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1b1815;white-space:nowrap")}>{s.nome}</span>
-                    </div>
-                  ))}
-                  {poolMappa.map((a, i) => (
-                    <button
-                      key={a.id}
-                      onClick={() => setSelPin(i)}
-                      style={css(
-                        `position:absolute;${px(a)};transform:translate(-50%,-50%);border:2px solid #1b1815;background:${selA?.id === a.id ? "#a2001d" : "#fffdf9"};color:${selA?.id === a.id ? "#faf3e7" : "#1b1815"};font-family:inherit;font-size:12px;font-weight:800;padding:5px 8px;cursor:pointer;z-index:${selA?.id === a.id ? 20 : 10};transition:background .2s;animation:sbPopPin .3s ease both;animation-delay:${i * 45}ms`,
-                      )}
-                    >
-                      {a.prezzo}€
-                    </button>
-                  ))}
-                  <div style={css("position:absolute;top:62px;left:20px;right:20px;display:flex;align-items:center;gap:10px")}>
+                  <MappaBologna annunci={poolMappa} selId={selA?.id ?? null} onSelect={(i) => setSelPin(i)} />
+                  <div style={css("position:absolute;top:62px;left:20px;right:20px;display:flex;align-items:center;gap:10px;pointer-events:none;z-index:5")}>
                     <h1 style={css("font-size:26px;font-weight:900;letter-spacing:-.045em;margin:0")}>Mappa</h1>
                     <span style={css("font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#736b62;background:#faf3e7;padding:5px 9px")}>
                       {poolMappa.length} case

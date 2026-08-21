@@ -48,9 +48,14 @@ export default async function AdminPage() {
         <p className="text-[15px] text-grigio">
           {annunci.length} {annunci.length === 1 ? "annuncio" : "annunci"} · {admin.email}
         </p>
-        <Button asChild>
-          <Link href="/admin/nuovo">+ Nuovo appartamento</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/modulo" target="_blank">Modulo host (PDF)</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/admin/nuovo">+ Nuovo appartamento</Link>
+          </Button>
+        </div>
       </div>
 
       {annunci.length === 0 ? (

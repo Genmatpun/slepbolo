@@ -2,8 +2,8 @@
 // Strategia: network-first per le pagine (contenuti sempre freschi quando c'è rete),
 // cache-first per gli asset statici. Fallback offline quando la rete manca.
 
-const CACHE = "slepbolo-v1";
-const OFFLINE_ASSETS = ["/", "/cerca", "/icon-192.png", "/manifest.webmanifest"];
+const CACHE = "slepbolo-v3";
+const OFFLINE_ASSETS = ["/app", "/icon-192.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
+import { ZONE_BOLOGNA, SEDI_UNIBO } from "@/lib/constants";
 
 // ============================================================
 // SLEPBOLO Mobile — app iOS-style (design "SLEPBOLO Mobile.dc.html")
@@ -32,6 +33,7 @@ export interface MobileAnnuncio {
   whatsapp: string | null;
   email: string | null;
   contattoNote: string | null;
+  foto: string | null;
 }
 
 const SEDI = [
@@ -68,6 +70,7 @@ function hash(id: string): number {
   return n;
 }
 const grad = (id: string) => GRAD[(hash(id) * 7) % GRAD.length];
+const coverBg = (a: MobileAnnuncio) => (a.foto ? `#000 url('${a.foto}') center/cover no-repeat` : grad(a.id));
 const glyph = (a: MobileAnnuncio) => a.zona.slice(0, 3).toUpperCase();
 const libere = (a: MobileAnnuncio) => a.tot - a.occ;
 const labelCamere = (n: number) => (n === 1 ? "1 camera libera" : `${n} camere libere`);
@@ -89,10 +92,14 @@ function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
 }
 
 const CHIP_FILTRI = ["Sotto 400 €", "Spese incluse", "2+ camere libere", "Breve periodo", "Contratto registrato"];
-const ABIT_ALL = [
-  "Non fumo", "Fumo", "Mattiniero/a", "Nottambulo/a", "Studio a casa", "Rientro tardi",
-  "Cucino spesso", "Ordinato/a", "Ho un animale", "Ok agli animali", "Weekend fuori",
-  "Sportivo/a", "Vegetariano/a", "Silenzioso/a", "Socievole", "Ospiti ok",
+
+// Abitudini divise per categoria (profilo studente)
+const ABIT_CATEGORIE: { titolo: string; voci: string[] }[] = [
+  { titolo: "Fumo", voci: ["Non fumo", "Fumo", "Fumo solo fuori"] },
+  { titolo: "Ritmi", voci: ["Mattiniero/a", "Nottambulo/a", "Rientro tardi", "Weekend fuori"] },
+  { titolo: "In casa", voci: ["Ordinato/a", "Cucino spesso", "Studio a casa", "Silenzioso/a", "Socievole", "Ospiti ok"] },
+  { titolo: "Animali", voci: ["Ho un animale", "Ok agli animali", "No animali"] },
+  { titolo: "Altro", voci: ["Sportivo/a", "Vegetariano/a", "Vegano/a", "Musica alta", "Niente feste"] },
 ];
 
 interface Utente {
@@ -115,7 +122,6 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [selPin, setSelPin] = useState(0);
-  const [abit, setAbit] = useState<string[]>(["Non fumo", "Studio a casa", "Ordinato/a"]);
 
   const sx = useRef(0);
   const py = useRef<number | null>(null);
@@ -143,7 +149,6 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
         await supabase.from("profiles").update({ nome, cognome, eta: meta.eta ?? null }).eq("id", u.id);
       }
       setUser({ id: u.id, email: u.email, nome, cognome });
-      if (data?.abitudini?.length) setAbit(data.abitudini as string[]);
     }
     supabase.auth.getUser().then(({ data: { user: u } }) => (u ? carica(u) : setUser(null)));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
@@ -164,16 +169,6 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   useEffect(() => {
     if (chiaveSalvati) localStorage.setItem(chiaveSalvati, JSON.stringify(saved));
   }, [saved, chiaveSalvati]);
-
-  // ---- salva le preferenze (abitudini) nel profilo ----
-  useEffect(() => {
-    if (!user || !supabaseConfigurato()) return;
-    const supabase = createClient();
-    const t = setTimeout(() => {
-      supabase.from("profiles").update({ abitudini: abit }).eq("id", user.id);
-    }, 700);
-    return () => clearTimeout(t);
-  }, [abit, user]);
 
   async function logout() {
     if (supabaseConfigurato()) await createClient().auth.signOut();
@@ -254,10 +249,10 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     >
       <div
         style={css(
-          `width:64px;height:64px;flex:none;display:grid;place-items:center;background:${grad(a.id)};color:rgba(255,255,255,.35);font-size:19px;font-weight:900;letter-spacing:-.05em`,
+          `width:64px;height:64px;flex:none;display:grid;place-items:center;background:${coverBg(a)};color:rgba(255,255,255,.35);font-size:19px;font-weight:900;letter-spacing:-.05em`,
         )}
       >
-        {glyph(a)}
+        {a.foto ? "" : glyph(a)}
       </div>
       <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
         <div style={css("display:flex;align-items:baseline;gap:8px")}>
@@ -297,7 +292,6 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     return `left:${x}px;top:${y}px`;
   };
 
-  const compl = 60 + abit.length * 5;
   const tabDefs: [string, string][] = [
     ["scopri", "Scopri"],
     ["cerca", "Cerca"],
@@ -389,11 +383,11 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                           .slice(0, 3) as { testo: string; hot?: boolean }[];
                         return (
                           <div key={a.id} style={css(wrap)}>
-                            <div style={css(`position:relative;height:170px;flex:none;display:grid;place-items:center;background:${grad(a.id)}`)}>
+                            <div style={css(`position:relative;height:170px;flex:none;display:grid;place-items:center;background:${coverBg(a)}`)}>
                               <span style={css("position:absolute;left:14px;top:14px;background:#faf3e7;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase")}>
                                 {a.zona}
                               </span>
-                              <span style={css("font-size:74px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.22)")}>{glyph(a)}</span>
+                              {!a.foto && <span style={css("font-size:74px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.22)")}>{glyph(a)}</span>}
                               <span style={css("position:absolute;right:14px;bottom:14px;background:#1b1815;color:#faf3e7;padding:7px 12px;font-size:19px;font-weight:900;letter-spacing:-.03em")}>
                                 {a.prezzo} €<span style={css("font-size:11px;font-weight:600")}>/mese</span>
                               </span>
@@ -595,75 +589,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
               )}
 
               {/* PROFILO */}
-              {tab === "profilo" && (
-                <div className="sb-noscroll" style={css("height:100%;overflow:auto;padding:62px 0 96px")}>
-                  <div style={css("padding:0 20px")}>
-                    <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Profilo</h1>
-                    <div style={css("height:2px;background:#1b1815;margin:12px 0 18px")} />
-                    <div style={css("display:flex;gap:14px;align-items:center")}>
-                      <div style={css("width:66px;height:66px;background:#a2001d;color:#faf3e7;display:grid;place-items:center;font-size:24px;font-weight:900;letter-spacing:-.04em")}>
-                        {((user.nome[0] ?? user.email[0] ?? "?") + (user.cognome[0] ?? "")).toUpperCase()}
-                      </div>
-                      <div style={css("min-width:0")}>
-                        <div style={css("font-size:22px;font-weight:900;letter-spacing:-.035em;line-height:1.05")}>
-                          {user.nome || user.cognome ? `${user.nome} ${user.cognome}`.trim() : "Studente UniBo"}
-                        </div>
-                        <div style={css("font-size:13px;color:#736b62;font-weight:600;margin-top:3px;overflow:hidden;text-overflow:ellipsis")}>{user.email}</div>
-                        <span style={css("display:inline-flex;align-items:center;gap:5px;margin-top:7px;background:rgba(46,125,91,.12);border:1px solid rgba(46,125,91,.3);color:#2e7d5b;font-size:11px;font-weight:800;padding:5px 9px;line-height:1.2;white-space:nowrap")}>
-                          ✓ Verificato UniBo
-                        </span>
-                      </div>
-                    </div>
-                    <button onClick={logout} style={css("margin-top:16px;width:100%;height:44px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer")}>
-                      Esci
-                    </button>
-                  </div>
-                  <div style={css("display:grid;grid-template-columns:1fr 1fr 1fr;border-top:2px solid #1b1815;border-bottom:2px solid #1b1815;margin:20px 0 0")}>
-                    <div style={css("padding:14px 16px;border-right:1px solid #e5dccb")}>
-                      <div style={css("font-size:24px;font-weight:900;letter-spacing:-.04em")}>450 €</div>
-                      <div style={css("font-size:11px;color:#736b62;font-weight:700")}>budget max</div>
-                    </div>
-                    <div style={css("padding:14px 16px;border-right:1px solid #e5dccb")}>
-                      <div style={css("font-size:24px;font-weight:900;letter-spacing:-.04em")}>Terracini</div>
-                      <div style={css("font-size:11px;color:#736b62;font-weight:700")}>sede</div>
-                    </div>
-                    <div style={css("padding:14px 16px")}>
-                      <div style={css("font-size:24px;font-weight:900;letter-spacing:-.04em")}>12</div>
-                      <div style={css("font-size:11px;color:#736b62;font-weight:700")}>mesi</div>
-                    </div>
-                  </div>
-                  <div style={css("padding:18px 20px 0")}>
-                    <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:10px")}>Abitudini</div>
-                    <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
-                      {ABIT_ALL.map((label) => {
-                        const on = abit.includes(label);
-                        return (
-                          <button
-                            key={label}
-                            onClick={() => setAbit(on ? abit.filter((x) => x !== label) : [...abit, label])}
-                            style={css(
-                              `border:2px solid ${on ? "#a2001d" : "#e5dccb"};background:${on ? "rgba(162,0,29,.08)" : "transparent"};color:${on ? "#a2001d" : "#736b62"};padding:8px 12px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .18s`,
-                            )}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div style={css("height:1px;background:#e5dccb;margin:20px 0")} />
-                    <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:8px")}>Completamento</div>
-                    <div style={css("height:10px;background:#e5dccb;overflow:hidden")}>
-                      <div style={css(`height:100%;width:${Math.min(100, compl)}%;background:#a2001d;transform-origin:left;animation:sbBar .7s cubic-bezier(.2,.9,.3,1) both;transition:width .3s`)} />
-                    </div>
-                    <div style={css("font-size:12.5px;color:#736b62;font-weight:600;margin-top:8px")}>
-                      Profilo al {Math.min(100, compl)}% · più è completo, più risposte ricevi
-                    </div>
-                    <button style={css("margin-top:20px;width:100%;height:52px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:14px;font-weight:800;text-align:left;padding:0 16px;display:flex;align-items:center;cursor:pointer")}>
-                      Ho una stanza libera<span style={css("margin-left:auto")}>+</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+              {tab === "profilo" && <ProfiloTab user={user} onLogout={logout} />}
             </div>
 
             {/* TAB BAR */}
@@ -692,8 +618,8 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
         {det && (
           <div style={css("position:absolute;inset:0;background:#faf3e7;z-index:70;display:flex;flex-direction:column;animation:sbSlide .34s cubic-bezier(.22,.9,.3,1) both")}>
             <div className="sb-noscroll" style={css("flex:1;overflow:auto")}>
-              <div style={css(`position:relative;height:270px;display:grid;place-items:center;background:${grad(det.id)}`)}>
-                <span style={css("font-size:96px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.2)")}>{glyph(det)}</span>
+              <div style={css(`position:relative;height:270px;display:grid;place-items:center;background:${coverBg(det)}`)}>
+                {!det.foto && <span style={css("font-size:96px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.2)")}>{glyph(det)}</span>}
                 <button onClick={() => setDetail(null)} style={css("position:absolute;left:18px;top:58px;width:40px;height:40px;border:0;background:#faf3e7;color:#1b1815;font-size:18px;font-weight:800;cursor:pointer")}>
                   ←
                 </button>
@@ -916,4 +842,189 @@ function AccediScreen() {
       <div style={css("margin-top:14px;font-size:12px;color:rgba(250,243,231,.6)")}>Solo studenti UniBo. Nessuna agenzia.</div>
     </div>
   );
+}
+
+// ============================================================
+// Profilo studente — modificabile e salvato nel database
+// ============================================================
+const inCampo = "width:100%;height:48px;border:2px solid #e5dccb;background:#fffdf9;padding:0 12px;font-family:inherit;font-size:15px;font-weight:600;color:#1b1815;outline:none";
+
+function ProfiloTab({ user, onLogout }: { user: Utente; onLogout: () => void }) {
+  const [nome, setNome] = useState(user.nome);
+  const [cognome, setCognome] = useState(user.cognome);
+  const [eta, setEta] = useState("");
+  const [corso, setCorso] = useState("");
+  const [sede, setSede] = useState("");
+  const [zona, setZona] = useState("");
+  const [budget, setBudget] = useState("");
+  const [bio, setBio] = useState("");
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
+  const [abit, setAbit] = useState<string[]>([]);
+  const [caricamentoFoto, setCaricamentoFoto] = useState(false);
+  const [salvato, setSalvato] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (!supabaseConfigurato()) return;
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("nome, cognome, eta, corso_laurea, sede_principale, zona_preferita, budget_max, abitudini, foto_url, bio")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        setNome(data.nome ?? "");
+        setCognome(data.cognome ?? "");
+        setEta(data.eta != null ? String(data.eta) : "");
+        setCorso(data.corso_laurea ?? "");
+        setSede(data.sede_principale ?? "");
+        setZona(data.zona_preferita ?? "");
+        setBudget(data.budget_max != null ? String(data.budget_max) : "");
+        setBio(data.bio ?? "");
+        setFotoUrl(data.foto_url ?? null);
+        setAbit((data.abitudini as string[]) ?? []);
+      });
+  }, [user.id]);
+
+  function toggle(v: string) {
+    setAbit((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
+  }
+
+  async function caricaFoto(file: File) {
+    if (!supabaseConfigurato()) return;
+    setCaricamentoFoto(true);
+    const supabase = createClient();
+    const path = `${user.id}/avatar/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
+    const { error } = await supabase.storage.from("foto").upload(path, file, { upsert: true });
+    if (!error) setFotoUrl(supabase.storage.from("foto").getPublicUrl(path).data.publicUrl);
+    setCaricamentoFoto(false);
+  }
+
+  async function salva() {
+    if (!supabaseConfigurato()) return;
+    setSalvando(true);
+    const supabase = createClient();
+    await supabase
+      .from("profiles")
+      .update({
+        nome, cognome,
+        eta: eta ? Number(eta) : null,
+        corso_laurea: corso || null,
+        sede_principale: sede || null,
+        zona_preferita: zona || null,
+        budget_max: budget ? Number(budget) : null,
+        bio: bio || null,
+        abitudini: abit,
+        foto_url: fotoUrl,
+      })
+      .eq("id", user.id);
+    setSalvando(false);
+    setSalvato(true);
+    setTimeout(() => setSalvato(false), 2200);
+  }
+
+  const campi = [nome, cognome, eta, corso, sede, budget, fotoUrl, abit.length ? "x" : ""];
+  const compl = Math.round((campi.filter(Boolean).length / campi.length) * 100);
+  const iniziali = ((nome[0] ?? user.email[0] ?? "?") + (cognome[0] ?? "")).toUpperCase();
+
+  return (
+    <div className="sb-noscroll" style={css("height:100%;overflow:auto;padding:62px 20px 110px")}>
+      <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Profilo</h1>
+      <div style={css("height:2px;background:#1b1815;margin:12px 0 18px")} />
+
+      {/* Testata: foto + nome */}
+      <div style={css("display:flex;gap:14px;align-items:center")}>
+        <label style={css("position:relative;width:74px;height:74px;flex:none;cursor:pointer;overflow:hidden;background:#a2001d")}>
+          {fotoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={fotoUrl} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
+          ) : (
+            <span style={css("width:100%;height:100%;display:grid;place-items:center;color:#faf3e7;font-size:26px;font-weight:900;letter-spacing:-.04em")}>{iniziali}</span>
+          )}
+          <span style={css("position:absolute;left:0;right:0;bottom:0;background:rgba(27,24,21,.72);color:#faf3e7;font-size:9px;font-weight:800;text-align:center;padding:2px 0;letter-spacing:.04em;text-transform:uppercase")}>
+            {caricamentoFoto ? "…" : "Cambia"}
+          </span>
+          <input type="file" accept="image/*" style={css("display:none")} onChange={(e) => e.target.files?.[0] && caricaFoto(e.target.files[0])} />
+        </label>
+        <div style={css("min-width:0")}>
+          <div style={css("font-size:20px;font-weight:900;letter-spacing:-.035em;line-height:1.05")}>
+            {`${nome} ${cognome}`.trim() || "Studente UniBo"}
+          </div>
+          <div style={css("font-size:12.5px;color:#736b62;font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis")}>{user.email}</div>
+          <span style={css("display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:rgba(46,125,91,.12);border:1px solid rgba(46,125,91,.3);color:#2e7d5b;font-size:11px;font-weight:800;padding:4px 8px")}>✓ Verificato UniBo</span>
+        </div>
+      </div>
+
+      {/* Completamento */}
+      <div style={css("margin:18px 0 6px;height:10px;background:#e5dccb;overflow:hidden")}>
+        <div style={css(`height:100%;width:${compl}%;background:#a2001d;transition:width .3s`)} />
+      </div>
+      <div style={css("font-size:12px;color:#736b62;font-weight:600")}>Profilo completo al {compl}%</div>
+
+      {/* Dati */}
+      <SezP titolo="I tuoi dati" />
+      <div style={css("display:flex;flex-direction:column;gap:12px")}>
+        <div style={css("display:flex;gap:10px")}>
+          <input style={css(inCampo)} placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+          <input style={css(inCampo)} placeholder="Cognome" value={cognome} onChange={(e) => setCognome(e.target.value)} />
+        </div>
+        <div style={css("display:flex;gap:10px")}>
+          <input style={css(inCampo + ";flex:0 0 90px")} placeholder="Età" inputMode="numeric" value={eta} onChange={(e) => setEta(e.target.value)} />
+          <input style={css(inCampo + ";flex:1")} placeholder="Corso di laurea" value={corso} onChange={(e) => setCorso(e.target.value)} />
+        </div>
+        <LabelP testo="Sede principale" />
+        <select style={css(inCampo)} value={sede} onChange={(e) => setSede(e.target.value)}>
+          <option value="">— scegli —</option>
+          {SEDI_UNIBO.map((s) => <option key={s.key} value={s.nome}>{s.nome}</option>)}
+        </select>
+        <LabelP testo="Zona preferita" />
+        <select style={css(inCampo)} value={zona} onChange={(e) => setZona(e.target.value)}>
+          <option value="">Indifferente</option>
+          {[...ZONE_BOLOGNA].sort().map((z) => <option key={z} value={z}>{z}</option>)}
+        </select>
+        <LabelP testo={`Budget massimo ${budget ? `· ${budget} €/mese` : ""}`} />
+        <input type="range" min={250} max={800} step={10} value={budget || "450"} onChange={(e) => setBudget(e.target.value)} style={css("width:100%;accent-color:#a2001d")} />
+        <LabelP testo="Due righe su di te" />
+        <textarea style={css(inCampo + ";height:auto;padding:10px 12px;resize:vertical;min-height:70px")} placeholder="Chi sei, cosa cerchi in una casa..." value={bio} onChange={(e) => setBio(e.target.value)} />
+      </div>
+
+      {/* Abitudini a categorie */}
+      <SezP titolo="Abitudini e preferenze" />
+      <div style={css("display:flex;flex-direction:column;gap:14px")}>
+        {ABIT_CATEGORIE.map((cat) => (
+          <div key={cat.titolo}>
+            <div style={css("font-size:12px;font-weight:800;color:#1b1815;margin-bottom:7px")}>{cat.titolo}</div>
+            <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
+              {cat.voci.map((v) => {
+                const on = abit.includes(v);
+                return (
+                  <button key={v} onClick={() => toggle(v)} style={css(`border:2px solid ${on ? "#a2001d" : "#e5dccb"};background:${on ? "rgba(162,0,29,.08)" : "transparent"};color:${on ? "#a2001d" : "#736b62"};padding:7px 11px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer`)}>{v}</button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={salva} disabled={salvando} style={css(`margin-top:24px;width:100%;height:54px;border:0;background:${salvato ? "#2e7d5b" : "#a2001d"};color:#faf3e7;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer`)}>
+        {salvando ? "Salvo…" : salvato ? "✓ Profilo salvato" : "Salva profilo"}
+      </button>
+      <button onClick={onLogout} style={css("margin-top:10px;width:100%;height:46px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer")}>
+        Esci
+      </button>
+    </div>
+  );
+}
+
+function SezP({ titolo }: { titolo: string }) {
+  return (
+    <div style={css("display:flex;align-items:center;gap:10px;margin:26px 0 14px")}>
+      <span style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e")}>{titolo}</span>
+      <span style={css("height:2px;flex:1;background:#e5dccb")} />
+    </div>
+  );
+}
+function LabelP({ testo }: { testo: string }) {
+  return <div style={css("font-size:12px;font-weight:700;color:#736b62;margin:2px 0 -4px")}>{testo}</div>;
 }

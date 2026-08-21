@@ -974,6 +974,16 @@ function ProfiloTab({
       </div>
       <div style={css("font-size:12px;color:#736b62;font-weight:600")}>Profilo completo al {compl}%</div>
 
+      {/* Proponi una casa */}
+      <a href="/proponi" style={css("margin-top:18px;display:flex;align-items:center;gap:12px;border:2px solid #1b1815;background:#1b1815;color:#faf3e7;padding:14px 16px;text-decoration:none")}>
+        <span style={css("font-size:22px")}>＋</span>
+        <span style={css("flex:1")}>
+          <span style={css("display:block;font-size:15px;font-weight:800;letter-spacing:-.02em")}>Hai una stanza libera?</span>
+          <span style={css("display:block;font-size:12.5px;color:rgba(250,243,231,.7)")}>Proponi la casa e cerca il coinquilino</span>
+        </span>
+        <span style={css("font-size:18px")}>→</span>
+      </a>
+
       {/* Dati */}
       <SezP titolo="I tuoi dati" />
       <div style={css("display:flex;flex-direction:column;gap:12px")}>

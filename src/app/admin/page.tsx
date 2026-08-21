@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAdminUser } from "@/lib/admin";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/server";
 import { AdminLogin } from "@/components/admin/admin-login";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { Button } from "@/components/ui/button";
 import { camereLibere } from "@/lib/types";
 import type { Annuncio } from "@/lib/types";
@@ -42,6 +43,7 @@ export default async function AdminPage() {
 
   return (
     <Shell>
+      <AdminNav />
       <div className="mb-6 flex items-center justify-between gap-4">
         <p className="text-[15px] text-grigio">
           {annunci.length} {annunci.length === 1 ? "annuncio" : "annunci"} · {admin.email}

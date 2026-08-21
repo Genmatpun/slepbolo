@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 
 // ============================================================
 // SLEPBOLO Mobile — app iOS-style (design "SLEPBOLO Mobile.dc.html")
@@ -26,6 +27,11 @@ export interface MobileAnnuncio {
   servizi: string[];
   descrizione: string;
   coinq: { n: string; e: number | null; c: string }[];
+  contattoNome: string | null;
+  telefono: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  contattoNote: string | null;
 }
 
 const SEDI = [
@@ -83,10 +89,22 @@ function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
 }
 
 const CHIP_FILTRI = ["Sotto 400 €", "Spese incluse", "2+ camere libere", "Breve periodo", "Contratto registrato"];
-const ABIT_ALL = ["Non fumo", "Studio a casa", "Rientro tardi", "Cucino spesso", "Ordinato/a", "Ho un animale", "Weekend fuori"];
+const ABIT_ALL = [
+  "Non fumo", "Fumo", "Mattiniero/a", "Nottambulo/a", "Studio a casa", "Rientro tardi",
+  "Cucino spesso", "Ordinato/a", "Ho un animale", "Ok agli animali", "Weekend fuori",
+  "Sportivo/a", "Vegetariano/a", "Silenzioso/a", "Socievole", "Ospiti ok",
+];
+
+interface Utente {
+  id: string;
+  email: string;
+  nome: string;
+  cognome: string;
+}
 
 export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
-  const [screen, setScreen] = useState<"accedi" | "app">("accedi");
+  // undefined = sto controllando la sessione; null = non loggato
+  const [user, setUser] = useState<Utente | null | undefined>(undefined);
   const [tab, setTab] = useState("scopri");
   const [idx, setIdx] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -103,6 +121,65 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   const py = useRef<number | null>(null);
   const ps = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ---- sessione + profilo ----
+  useEffect(() => {
+    if (!supabaseConfigurato()) {
+      setUser(null);
+      return;
+    }
+    const supabase = createClient();
+    type SbUser = { id: string; email?: string; user_metadata?: Record<string, unknown> };
+    async function carica(u: SbUser) {
+      if (!u.email) return setUser(null);
+      const meta = u.user_metadata ?? {};
+      const { data } = await supabase.from("profiles").select("nome, cognome, abitudini").eq("id", u.id).single();
+      let nome = data?.nome ?? "";
+      let cognome = data?.cognome ?? "";
+      // Sincronizza nome/cognome dai dati di registrazione se il profilo è vuoto
+      if ((!nome || !cognome) && (meta.nome || meta.cognome)) {
+        nome = (meta.nome as string) ?? nome;
+        cognome = (meta.cognome as string) ?? cognome;
+        await supabase.from("profiles").update({ nome, cognome, eta: meta.eta ?? null }).eq("id", u.id);
+      }
+      setUser({ id: u.id, email: u.email, nome, cognome });
+      if (data?.abitudini?.length) setAbit(data.abitudini as string[]);
+    }
+    supabase.auth.getUser().then(({ data: { user: u } }) => (u ? carica(u) : setUser(null)));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      session?.user ? carica(session.user) : setUser(null),
+    );
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // ---- salvati: salvati sul dispositivo, per utente ----
+  const chiaveSalvati = user ? `slepbolo-salvati-${user.id}` : null;
+  useEffect(() => {
+    if (!chiaveSalvati) return;
+    try {
+      const raw = localStorage.getItem(chiaveSalvati);
+      if (raw) setSaved(JSON.parse(raw));
+    } catch {}
+  }, [chiaveSalvati]);
+  useEffect(() => {
+    if (chiaveSalvati) localStorage.setItem(chiaveSalvati, JSON.stringify(saved));
+  }, [saved, chiaveSalvati]);
+
+  // ---- salva le preferenze (abitudini) nel profilo ----
+  useEffect(() => {
+    if (!user || !supabaseConfigurato()) return;
+    const supabase = createClient();
+    const t = setTimeout(() => {
+      supabase.from("profiles").update({ abitudini: abit }).eq("id", user.id);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [abit, user]);
+
+  async function logout() {
+    if (supabaseConfigurato()) await createClient().auth.signOut();
+    setUser(null);
+    setTab("scopri");
+  }
 
   const filtrati = () =>
     annunci.filter(
@@ -250,47 +327,20 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
           "position:relative;width:100%;max-width:440px;min-height:100dvh;height:100dvh;background:#faf3e7;overflow:hidden;color:#1b1815",
         )}
       >
-        {/* ---------- ACCEDI ---------- */}
-        {screen === "accedi" && (
-          <div style={css("position:absolute;inset:0;background:#a2001d;color:#faf3e7;display:flex;flex-direction:column;padding:96px 26px 46px;animation:sbIn .45s ease both")}>
-            <div style={css("display:flex;align-items:center;gap:10px")}>
-              <div style={css("position:relative;width:38px;height:38px;display:grid;place-items:center;background:#faf3e7;overflow:hidden")}>
-                <span style={css("position:relative;z-index:2;font-size:16px;font-weight:900;letter-spacing:-.05em;color:#a2001d")}>SB</span>
-                <span style={css("position:absolute;right:-7px;bottom:-8px;width:22px;height:22px;border-radius:99px;background:#e4572e")} />
-              </div>
-              <div style={css("font-size:20px;font-weight:900;letter-spacing:-.05em")}>
-                SLEP<span style={css("color:#e4572e")}>BOLO</span>
-              </div>
-            </div>
-            <div style={css("height:2px;background:rgba(250,243,231,.35);margin:22px 0 0")} />
-            <h1 style={css("font-size:46px;line-height:.94;font-weight:900;letter-spacing:-.045em;margin:auto 0 0;max-width:9ch")}>
-              Chi abita<br />già in casa.
-            </h1>
-            <p style={css("font-size:15px;line-height:1.35;color:rgba(250,243,231,.72);margin:16px 0 30px;max-width:26ch")}>
-              Stanze a Bologna, viste dal lato dei coinquilini.
-            </p>
-            <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:8px")}>
-              Mail istituzionale
-            </div>
-            <div style={css("display:flex;align-items:center;border-bottom:2px solid rgba(250,243,231,.45);padding-bottom:10px")}>
-              <span style={css("font-size:17px;font-weight:600")}>nome.cognome</span>
-              <span style={css("font-size:17px;font-weight:600;color:rgba(250,243,231,.55)")}>@studio.unibo.it</span>
-              <span style={css("margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#faf3e7;background:#2e7d5b;padding:4px 8px")}>
-                ✓ VERIFICATA
-              </span>
-            </div>
-            <button
-              onClick={() => setScreen("app")}
-              style={css("margin-top:26px;width:100%;height:56px;border:0;background:#faf3e7;color:#a2001d;font-family:inherit;font-size:16px;font-weight:800;letter-spacing:-.01em;text-align:left;padding:0 20px;display:flex;align-items:center;cursor:pointer")}
-            >
-              Entra<span style={css("margin-left:auto;font-size:19px")}>→</span>
-            </button>
-            <div style={css("margin-top:14px;font-size:12px;color:rgba(250,243,231,.6)")}>Solo studenti UniBo. Nessuna agenzia.</div>
+        {/* ---------- CARICAMENTO ---------- */}
+        {user === undefined && (
+          <div style={css("position:absolute;inset:0;background:#a2001d;display:grid;place-items:center;animation:sbIn .3s ease both")}>
+            <span style={css("color:#faf3e7;font-size:20px;font-weight:900;letter-spacing:-.05em")}>
+              SLEP<span style={css("color:#e4572e")}>BOLO</span>
+            </span>
           </div>
         )}
 
+        {/* ---------- ACCEDI (login/registrazione UniBo) ---------- */}
+        {user === null && <AccediScreen />}
+
         {/* ---------- APP ---------- */}
-        {screen === "app" && (
+        {user && (
           <div style={css("position:absolute;inset:0;display:flex;flex-direction:column")}>
             <div
               key={tab}
@@ -551,15 +601,22 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                     <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Profilo</h1>
                     <div style={css("height:2px;background:#1b1815;margin:12px 0 18px")} />
                     <div style={css("display:flex;gap:14px;align-items:center")}>
-                      <div style={css("width:66px;height:66px;background:#a2001d;color:#faf3e7;display:grid;place-items:center;font-size:24px;font-weight:900;letter-spacing:-.04em")}>MR</div>
-                      <div>
-                        <div style={css("font-size:22px;font-weight:900;letter-spacing:-.035em;line-height:1.05")}>Marco Rinaldi</div>
-                        <div style={css("font-size:13px;color:#736b62;font-weight:600;margin-top:3px")}>Ingegneria informatica · 2º anno</div>
+                      <div style={css("width:66px;height:66px;background:#a2001d;color:#faf3e7;display:grid;place-items:center;font-size:24px;font-weight:900;letter-spacing:-.04em")}>
+                        {((user.nome[0] ?? user.email[0] ?? "?") + (user.cognome[0] ?? "")).toUpperCase()}
+                      </div>
+                      <div style={css("min-width:0")}>
+                        <div style={css("font-size:22px;font-weight:900;letter-spacing:-.035em;line-height:1.05")}>
+                          {user.nome || user.cognome ? `${user.nome} ${user.cognome}`.trim() : "Studente UniBo"}
+                        </div>
+                        <div style={css("font-size:13px;color:#736b62;font-weight:600;margin-top:3px;overflow:hidden;text-overflow:ellipsis")}>{user.email}</div>
                         <span style={css("display:inline-flex;align-items:center;gap:5px;margin-top:7px;background:rgba(46,125,91,.12);border:1px solid rgba(46,125,91,.3);color:#2e7d5b;font-size:11px;font-weight:800;padding:5px 9px;line-height:1.2;white-space:nowrap")}>
                           ✓ Verificato UniBo
                         </span>
                       </div>
                     </div>
+                    <button onClick={logout} style={css("margin-top:16px;width:100%;height:44px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer")}>
+                      Esci
+                    </button>
                   </div>
                   <div style={css("display:grid;grid-template-columns:1fr 1fr 1fr;border-top:2px solid #1b1815;border-bottom:2px solid #1b1815;margin:20px 0 0")}>
                     <div style={css("padding:14px 16px;border-right:1px solid #e5dccb")}>
@@ -711,15 +768,152 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
               </div>
               <div style={css("padding:20px 20px 30px;font-size:14.5px;line-height:1.5;color:#3a332d")}>{det.descrizione}</div>
             </div>
-            <div style={css("padding:14px 20px 24px;background:#faf3e7;border-top:1px solid #e5dccb")}>
-              <button style={css("width:100%;height:56px;border:0;background:#a2001d;color:#faf3e7;font-family:inherit;font-size:16px;font-weight:800;text-align:left;padding:0 20px;display:flex;align-items:center;cursor:pointer")}>
-                Scrivi a {det.coinq[0]?.n ?? "la casa"}
-                <span style={css("margin-left:auto")}>→</span>
-              </button>
+            <div style={css("padding:12px 20px 24px;background:#faf3e7;border-top:2px solid #1b1815")}>
+              <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#736b62;margin-bottom:8px")}>
+                Contatta {det.contattoNome || "l'host"}
+                {det.contattoNote ? ` · ${det.contattoNote}` : ""}
+              </div>
+              <div style={css("display:flex;gap:8px")}>
+                {det.telefono && (
+                  <a href={`tel:${det.telefono.replace(/\s/g, "")}`} style={css("flex:1;height:52px;background:#a2001d;color:#faf3e7;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none")}>
+                    Chiama
+                  </a>
+                )}
+                {(det.whatsapp || det.telefono) && (
+                  <a href={`https://wa.me/${(det.whatsapp || det.telefono || "").replace(/[^\d]/g, "")}`} target="_blank" rel="noopener" style={css("flex:1;height:52px;background:#1b1815;color:#faf3e7;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;text-decoration:none")}>
+                    WhatsApp
+                  </a>
+                )}
+                {det.email && (
+                  <a href={`mailto:${det.email}`} style={css("flex:1;height:52px;border:2px solid #1b1815;color:#1b1815;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;text-decoration:none")}>
+                    Email
+                  </a>
+                )}
+              </div>
+              {!det.telefono && !det.whatsapp && !det.email && (
+                <div style={css("font-size:13px;color:#736b62")}>Nessun contatto disponibile per questo annuncio.</div>
+              )}
             </div>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Schermata di accesso: solo mail @studio.unibo.it
+// ============================================================
+function AccediScreen() {
+  const [modo, setModo] = useState<"registrati" | "accedi">("registrati");
+  const [nome, setNome] = useState("");
+  const [cognome, setCognome] = useState("");
+  const [eta, setEta] = useState("");
+  const [local, setLocal] = useState("");
+  const [password, setPassword] = useState("");
+  const [errore, setErrore] = useState<string | null>(null);
+  const [avviso, setAvviso] = useState<string | null>(null);
+  const [invio, setInvio] = useState(false);
+
+  const campo = "width:100%;height:52px;border:0;border-bottom:2px solid rgba(250,243,231,.45);background:transparent;color:#faf3e7;font-family:inherit;font-size:17px;font-weight:600;outline:none;padding:0 2px";
+
+  async function submit() {
+    setErrore(null);
+    setAvviso(null);
+    const l = local.trim().toLowerCase().replace(/@.*/, "");
+    if (!l) return setErrore("Scrivi la tua mail UniBo.");
+    if (password.length < 8) return setErrore("La password deve avere almeno 8 caratteri.");
+    if (modo === "registrati" && (!nome.trim() || !cognome.trim())) return setErrore("Servono nome e cognome.");
+    if (!supabaseConfigurato()) return setErrore("Accesso non disponibile in questa demo.");
+
+    const email = `${l}@studio.unibo.it`;
+    setInvio(true);
+    const supabase = createClient();
+    if (modo === "registrati") {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { nome: nome.trim(), cognome: cognome.trim(), eta: eta ? Number(eta) : null } },
+      });
+      setInvio(false);
+      if (error) return setErrore(error.message);
+      if (!data.session) {
+        setAvviso("Ti abbiamo mandato una mail: clicca il link per confermare, poi accedi.");
+        setModo("accedi");
+      }
+      // se c'è già la sessione, onAuthStateChange fa entrare in automatico
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setInvio(false);
+      if (error) return setErrore("Email o password non corretti (o mail non ancora confermata).");
+    }
+  }
+
+  return (
+    <div style={css("position:absolute;inset:0;background:#a2001d;color:#faf3e7;display:flex;flex-direction:column;padding:64px 26px 40px;overflow:auto;animation:sbIn .45s ease both")}>
+      <div style={css("display:flex;align-items:center;gap:10px")}>
+        <div style={css("position:relative;width:38px;height:38px;display:grid;place-items:center;background:#faf3e7;overflow:hidden")}>
+          <span style={css("position:relative;z-index:2;font-size:16px;font-weight:900;letter-spacing:-.05em;color:#a2001d")}>SB</span>
+          <span style={css("position:absolute;right:-7px;bottom:-8px;width:22px;height:22px;border-radius:99px;background:#e4572e")} />
+        </div>
+        <div style={css("font-size:20px;font-weight:900;letter-spacing:-.05em")}>
+          SLEP<span style={css("color:#e4572e")}>BOLO</span>
+        </div>
+      </div>
+
+      <h1 style={css("font-size:38px;line-height:.96;font-weight:900;letter-spacing:-.045em;margin:26px 0 6px;max-width:11ch")}>
+        {modo === "registrati" ? "Solo studenti UniBo." : "Bentornato."}
+      </h1>
+      <p style={css("font-size:14px;line-height:1.35;color:rgba(250,243,231,.72);margin:0 0 22px;max-width:30ch")}>
+        {modo === "registrati"
+          ? "Entra con la tua mail istituzionale. Serve a tenere fuori chi non studia qui."
+          : "Accedi con la tua mail @studio.unibo.it."}
+      </p>
+
+      <div style={css("display:flex;gap:6px;margin-bottom:20px")}>
+        {(["registrati", "accedi"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setModo(m)}
+            style={css(`flex:1;height:40px;border:2px solid #faf3e7;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:${modo === m ? "#faf3e7" : "transparent"};color:${modo === m ? "#a2001d" : "#faf3e7"}`)}
+          >
+            {m === "registrati" ? "Registrati" : "Accedi"}
+          </button>
+        ))}
+      </div>
+
+      <div style={css("display:flex;flex-direction:column;gap:16px")}>
+        {modo === "registrati" && (
+          <>
+            <div style={css("display:flex;gap:12px")}>
+              <input style={css(campo)} placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+              <input style={css(campo)} placeholder="Cognome" value={cognome} onChange={(e) => setCognome(e.target.value)} />
+            </div>
+            <input style={css(campo)} placeholder="Età" inputMode="numeric" value={eta} onChange={(e) => setEta(e.target.value)} />
+          </>
+        )}
+        <div>
+          <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:8px")}>Mail istituzionale</div>
+          <div style={css("display:flex;align-items:center;border-bottom:2px solid rgba(250,243,231,.45)")}>
+            <input style={css("flex:1;height:52px;border:0;background:transparent;color:#faf3e7;font-family:inherit;font-size:17px;font-weight:600;outline:none")} placeholder="nome.cognome" value={local} onChange={(e) => setLocal(e.target.value)} autoCapitalize="none" />
+            <span style={css("font-size:15px;font-weight:600;color:rgba(250,243,231,.6);white-space:nowrap")}>@studio.unibo.it</span>
+          </div>
+        </div>
+        <input style={css(campo)} type="password" placeholder="Password (min 8 caratteri)" value={password} onChange={(e) => setPassword(e.target.value)} />
+      </div>
+
+      {errore && <div style={css("margin-top:16px;font-size:13px;font-weight:700;color:#ffd7c2")}>{errore}</div>}
+      {avviso && <div style={css("margin-top:16px;font-size:13px;font-weight:700;background:rgba(250,243,231,.16);padding:10px 12px")}>{avviso}</div>}
+
+      <button
+        onClick={submit}
+        disabled={invio}
+        style={css("margin-top:24px;width:100%;height:56px;border:0;background:#faf3e7;color:#a2001d;font-family:inherit;font-size:16px;font-weight:800;text-align:left;padding:0 20px;display:flex;align-items:center;cursor:pointer")}
+      >
+        {invio ? "Un attimo…" : modo === "registrati" ? "Crea account" : "Entra"}
+        <span style={css("margin-left:auto;font-size:19px")}>→</span>
+      </button>
+      <div style={css("margin-top:14px;font-size:12px;color:rgba(250,243,231,.6)")}>Solo studenti UniBo. Nessuna agenzia.</div>
     </div>
   );
 }

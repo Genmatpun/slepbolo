@@ -57,6 +57,11 @@ export default async function AppPage() {
         servizi: a.servizi,
         descrizione: a.descrizione ?? "",
         coinq: a.housemates.map((h) => ({ n: h.nome_visualizzato, e: h.eta, c: h.corso ?? "" })),
+        contattoNome: a.contatto_nome ?? null,
+        telefono: a.contatto_telefono ?? null,
+        whatsapp: a.contatto_whatsapp ?? null,
+        email: a.contatto_email ?? null,
+        contattoNote: a.contatto_note ?? null,
         _lib: camereLibere(a),
       };
     })

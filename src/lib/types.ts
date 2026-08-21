@@ -61,6 +61,12 @@ export interface Apartment {
   regole: string[];
   contratto_tipo: string | null;
   cauzione: string | null;
+  contatto_nome: string | null;
+  contatto_telefono: string | null;
+  contatto_whatsapp: string | null;
+  contatto_email: string | null;
+  contatto_note: string | null;
+  foto_urls: string[];
   attivo: boolean;
   created_at: string;
 }

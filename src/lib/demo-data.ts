@@ -63,6 +63,12 @@ export const DEMO_ANNUNCI: Annuncio[] = SPECS.map((s) => {
     regole: [],
     contratto_tipo: s.contratto,
     cauzione: s.cauzione,
+    contatto_nome: "Host demo",
+    contatto_telefono: "+39 051 000000",
+    contatto_whatsapp: null,
+    contatto_email: null,
+    contatto_note: null,
+    foto_urls: [],
     attivo: true,
     created_at: "2026-08-01T00:00:00Z",
     rooms: Array.from({ length: libere }, (_, i) => ({

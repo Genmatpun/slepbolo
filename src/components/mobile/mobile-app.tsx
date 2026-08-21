@@ -122,6 +122,8 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [selPin, setSelPin] = useState(0);
+  // preferenze profilo che filtrano SOLO l'Esplora (Scopri)
+  const [pref, setPref] = useState<{ budget: number | null; zona: string | null }>({ budget: null, zona: null });
 
   const sx = useRef(0);
   const py = useRef<number | null>(null);
@@ -139,7 +141,12 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     async function carica(u: SbUser) {
       if (!u.email) return setUser(null);
       const meta = u.user_metadata ?? {};
-      const { data } = await supabase.from("profiles").select("nome, cognome, abitudini").eq("id", u.id).single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("nome, cognome, abitudini, budget_max, zona_preferita")
+        .eq("id", u.id)
+        .single();
+      setPref({ budget: data?.budget_max ?? null, zona: data?.zona_preferita ?? null });
       let nome = data?.nome ?? "";
       let cognome = data?.cognome ?? "";
       // Sincronizza nome/cognome dai dati di registrazione se il profilo è vuoto
@@ -186,7 +193,12 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
         (!filtri.includes("2+ camere libere") || libere(a) >= 2),
     );
 
-  const pool = filtrati();
+  // Esplora: filtrato sulle preferenze del profilo. Cerca: filtri a chip. Mappa: tutte.
+  const poolScopri = annunci.filter(
+    (a) => (!pref.budget || a.prezzo <= pref.budget) && (!pref.zona || a.zona === pref.zona),
+  );
+  const poolCerca = filtrati();
+  const poolMappa = annunci;
   const det = detail ? annunci.find((a) => a.id === detail) ?? null : null;
 
   // ---- swipe ----
@@ -199,7 +211,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     if (dragging) setDragX(e.clientX - sx.current);
   };
   const avanza = (save: boolean) => {
-    const a = pool[idx];
+    const a = poolScopri[idx];
     setSaved((prev) => (save && a && !prev.includes(a.id) ? [...prev, a.id] : prev));
     setIdx((i) => i + 1);
     setDragX(0);
@@ -239,7 +251,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     } else if (pull) setPull(0);
   };
 
-  const selA = pool[Math.min(selPin, Math.max(0, pool.length - 1))] || annunci[0];
+  const selA = poolMappa[Math.min(selPin, Math.max(0, poolMappa.length - 1))] || annunci[0];
 
   const row = (a: MobileAnnuncio) => (
     <div
@@ -300,7 +312,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     ["profilo", "Profilo"],
   ];
 
-  const stack = pool.slice(idx, idx + 3);
+  const stack = poolScopri.slice(idx, idx + 3);
 
   return (
     <div style={css("min-height:100dvh;background:#e9e2d5;display:flex;justify-content:center")}>
@@ -346,7 +358,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                   <div style={css("display:flex;align-items:flex-end;justify-content:space-between")}>
                     <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Scopri</h1>
                     <div style={css("font-size:12px;font-weight:700;color:#736b62;padding-bottom:4px")}>
-                      {Math.max(0, pool.length - idx)} case
+                      {Math.max(0, poolScopri.length - idx)} case
                     </div>
                   </div>
                   <div style={css("height:2px;background:#1b1815;margin:12px 0 0")} />
@@ -359,10 +371,19 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                   >
                     {stack.length === 0 && (
                       <div style={css("position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px")}>
-                        <div>
-                          <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em")}>Hai visto tutto.</div>
-                          <div style={css("font-size:13.5px;color:#736b62;margin-top:6px")}>Le case salvate sono nel tab Salvati.</div>
-                        </div>
+                        {poolScopri.length === 0 && (pref.budget || pref.zona) ? (
+                          <div>
+                            <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em")}>Nessuna casa con le tue preferenze.</div>
+                            <div style={css("font-size:13.5px;color:#736b62;margin-top:6px;max-width:26ch")}>
+                              Allarga budget o zona nel Profilo, oppure guardale tutte in Cerca e Mappa.
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em")}>Hai visto tutto.</div>
+                            <div style={css("font-size:13.5px;color:#736b62;margin-top:6px")}>Le case salvate sono nel tab Salvati.</div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {stack
@@ -454,7 +475,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                     <button onClick={salva} style={css("flex:1;height:52px;border:0;background:#a2001d;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}>
                       Salva
                     </button>
-                    <button onClick={() => pool[idx] && setDetail(pool[idx].id)} style={css("width:52px;height:52px;border:0;background:#1b1815;color:#faf3e7;font-size:19px;cursor:pointer")}>
+                    <button onClick={() => poolScopri[idx] && setDetail(poolScopri[idx].id)} style={css("width:52px;height:52px;border:0;background:#1b1815;color:#faf3e7;font-size:19px;cursor:pointer")}>
                       →
                     </button>
                   </div>
@@ -506,9 +527,9 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                     })}
                   </div>
                   <div style={css("padding:0 20px 8px;font-size:12px;font-weight:700;color:#736b62")}>
-                    {pool.length} case · ordinate per distanza da Terracini
+                    {poolCerca.length} case · ordinate per distanza da Terracini
                   </div>
-                  {pool.map((a) => row(a))}
+                  {poolCerca.map((a) => row(a))}
                 </div>
               )}
 
@@ -522,7 +543,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                       <span style={css("font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#1b1815;white-space:nowrap")}>{s.nome}</span>
                     </div>
                   ))}
-                  {pool.map((a, i) => (
+                  {poolMappa.map((a, i) => (
                     <button
                       key={a.id}
                       onClick={() => setSelPin(i)}
@@ -536,7 +557,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                   <div style={css("position:absolute;top:62px;left:20px;right:20px;display:flex;align-items:center;gap:10px")}>
                     <h1 style={css("font-size:26px;font-weight:900;letter-spacing:-.045em;margin:0")}>Mappa</h1>
                     <span style={css("font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#736b62;background:#faf3e7;padding:5px 9px")}>
-                      {pool.length} case
+                      {poolMappa.length} case
                     </span>
                   </div>
                   {selA && (
@@ -589,7 +610,16 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
               )}
 
               {/* PROFILO */}
-              {tab === "profilo" && <ProfiloTab user={user} onLogout={logout} />}
+              {tab === "profilo" && (
+                <ProfiloTab
+                  user={user}
+                  onLogout={logout}
+                  onSaved={(budget, zona) => {
+                    setPref({ budget, zona });
+                    setIdx(0);
+                  }}
+                />
+              )}
             </div>
 
             {/* TAB BAR */}
@@ -849,7 +879,15 @@ function AccediScreen() {
 // ============================================================
 const inCampo = "width:100%;height:48px;border:2px solid #e5dccb;background:#fffdf9;padding:0 12px;font-family:inherit;font-size:15px;font-weight:600;color:#1b1815;outline:none";
 
-function ProfiloTab({ user, onLogout }: { user: Utente; onLogout: () => void }) {
+function ProfiloTab({
+  user,
+  onLogout,
+  onSaved,
+}: {
+  user: Utente;
+  onLogout: () => void;
+  onSaved: (budget: number | null, zona: string | null) => void;
+}) {
   const [nome, setNome] = useState(user.nome);
   const [cognome, setCognome] = useState(user.cognome);
   const [eta, setEta] = useState("");
@@ -919,6 +957,7 @@ function ProfiloTab({ user, onLogout }: { user: Utente; onLogout: () => void }) 
         foto_url: fotoUrl,
       })
       .eq("id", user.id);
+    onSaved(budget ? Number(budget) : null, zona || null);
     setSalvando(false);
     setSalvato(true);
     setTimeout(() => setSalvato(false), 2200);

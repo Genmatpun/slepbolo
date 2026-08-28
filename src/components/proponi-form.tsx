@@ -54,16 +54,23 @@ export function ProponiForm() {
     setNomeC(""); setEtaC(""); setCorsoC("");
   }
 
+  function err(m: string) {
+    setErrore(m);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function invia() {
     setErrore(null);
-    if (!titolo.trim()) return setErrore("Serve un titolo.");
-    if (!occValide) return setErrore("Deve restare almeno una camera libera.");
-    if (!cTel && !cWa && !cEmail) return setErrore("Metti almeno un contatto (telefono, WhatsApp o email).");
-    if (!supabaseConfigurato()) return setErrore("Invio non disponibile.");
+    if (!titolo.trim()) return err("Manca il titolo dell'annuncio.");
+    if (!via.trim()) return err("Manca la via (serve per la mappa).");
+    if (!occValide) return err("Le camere occupate devono essere meno di quelle totali (almeno una libera).");
+    if (!prezzo || prezzo <= 0) return err("Inserisci l'affitto mensile.");
+    if (!cTel && !cWa && !cEmail) return err("Metti almeno un contatto: telefono, WhatsApp o email.");
+    if (!supabaseConfigurato()) return err("Invio non disponibile in questo momento.");
 
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return setErrore("Devi accedere per proporre una casa.");
+    if (!user) return err("Sessione scaduta: torna all'app e accedi di nuovo.");
 
     setInvio(true);
     const dati = {
@@ -77,7 +84,7 @@ export function ProponiForm() {
     };
     const { error } = await supabase.from("richieste").insert({ submitted_by: user.id, dati });
     setInvio(false);
-    if (error) return setErrore("Errore nell'invio: " + error.message);
+    if (error) return err("Errore nell'invio: " + error.message);
     setFatto(true);
   }
 
@@ -95,11 +102,15 @@ export function ProponiForm() {
 
   return (
     <div className="flex flex-col gap-8">
+      {errore && (
+        <p className="border-2 border-rosso bg-rosso/[0.06] p-3 text-[13.5px] font-bold text-rosso">{errore}</p>
+      )}
+      <p className="-mb-3 text-[12.5px] text-grigio">I campi con <span className="font-bold text-rosso">*</span> sono obbligatori.</p>
       <Sez titolo="La casa" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Titolo" wide><input className={inputClass} value={titolo} onChange={(e) => setTitolo(e.target.value)} placeholder="Es. Singola in trilocale a Zamboni" /></Field>
-        <Field label="Zona"><select className={inputClass} value={zona} onChange={(e) => setZona(e.target.value)}>{[...ZONE_BOLOGNA].sort().map((z) => <option key={z}>{z}</option>)}</select></Field>
-        <Field label="Via (senza civico)"><input className={inputClass} value={via} onChange={(e) => setVia(e.target.value)} /></Field>
+        <Field label="Titolo *" wide><input className={inputClass} value={titolo} onChange={(e) => setTitolo(e.target.value)} placeholder="Es. Singola in trilocale a Zamboni" /></Field>
+        <Field label="Zona *"><select className={inputClass} value={zona} onChange={(e) => setZona(e.target.value)}>{[...ZONE_BOLOGNA].sort().map((z) => <option key={z}>{z}</option>)}</select></Field>
+        <Field label="Via * (senza civico)"><input className={inputClass} value={via} onChange={(e) => setVia(e.target.value)} placeholder="Es. Via Mascarella" /></Field>
         <Field label="Camere totali"><input type="number" min={1} max={12} className={inputClass} value={tot} onChange={(e) => setTot(Number(e.target.value))} /></Field>
         <Field label="Camere occupate" errore={!occValide ? "Almeno una libera" : undefined}><input type="number" min={0} max={tot - 1} className={inputClass} value={occ} onChange={(e) => setOcc(Number(e.target.value))} /></Field>
         <Field label="Piano / ascensore" wide><input className={inputClass} value={piano} onChange={(e) => setPiano(e.target.value)} /></Field>
@@ -115,7 +126,7 @@ export function ProponiForm() {
       <Sez titolo="Stanza e prezzo" />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Tipo stanza"><div className="flex gap-1.5">{TIPI_STANZA.map((t) => <ChipToggle key={t.value} attivo={tipo === t.value} onClick={() => setTipo(t.value)}>{t.label}</ChipToggle>)}</div></Field>
-        <Field label="Affitto/mese (a persona)"><input type="number" className={inputClass} value={prezzo} onChange={(e) => setPrezzo(Number(e.target.value))} /></Field>
+        <Field label="Affitto/mese (a persona) *"><input type="number" className={inputClass} value={prezzo} onChange={(e) => setPrezzo(Number(e.target.value))} /></Field>
         <Field label="Spese"><label className="flex items-center gap-2.5 py-2 text-sm"><input type="checkbox" className="h-4 w-4 accent-rosso" checked={speseIncl} onChange={(e) => setSpeseIncl(e.target.checked)} /> Incluse</label></Field>
         {!speseIncl && <Field label="Spese stimate (€)"><input type="number" className={inputClass} value={speseStim} onChange={(e) => setSpeseStim(Number(e.target.value))} /></Field>}
         <Field label="Disponibile dal"><input type="date" className={inputClass} value={dal} onChange={(e) => setDal(e.target.value)} /></Field>
@@ -143,7 +154,7 @@ export function ProponiForm() {
       </div>
 
       <Sez titolo="I tuoi contatti" />
-      <p className="-mt-4 text-[13px] text-grigio">Chi cerca casa ti contatterà direttamente qui.</p>
+      <p className="-mt-4 text-[13px] text-grigio">Chi cerca casa ti contatterà direttamente qui. <span className="font-bold text-rosso">Almeno uno *</span> (telefono, WhatsApp o email).</p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nome referente"><input className={inputClass} value={cNome} onChange={(e) => setCNome(e.target.value)} /></Field>
         <Field label="Telefono"><input className={inputClass} value={cTel} onChange={(e) => setCTel(e.target.value)} placeholder="+39 ..." /></Field>
@@ -156,7 +167,6 @@ export function ProponiForm() {
       <Field label="Descrizione"><textarea rows={4} className={`${inputClass} resize-y`} value={descrizione} onChange={(e) => setDescrizione(e.target.value)} placeholder="Com'è la casa, cosa cercate in un coinquilino..." /></Field>
       <div className="flex flex-wrap gap-1.5">{SERVIZI.map((s) => <ChipToggle key={s} attivo={servizi.includes(s)} onClick={() => setServizi((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s])}>{s}</ChipToggle>)}</div>
 
-      {errore && <p className="border-2 border-rosso bg-rosso/[0.06] p-3 text-[13px] font-semibold text-rosso">{errore}</p>}
       <div className="border-t-2 border-inchiostro pt-5 text-right">
         <Button onClick={invia} disabled={invio} size="lg">{invio ? "Invio…" : "Invia proposta"}</Button>
         <p className="mt-2 text-[12.5px] text-grigio">{libere} {libere === 1 ? "camera libera" : "camere libere"} · verrà controllata prima di essere pubblicata.</p>

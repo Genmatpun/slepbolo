@@ -746,6 +746,20 @@ function AccediScreen() {
 
   const campo = "width:100%;height:52px;border:0;border-bottom:2px solid rgba(250,243,231,.45);background:transparent;color:#faf3e7;font-family:inherit;font-size:17px;font-weight:600;outline:none;padding:0 2px";
 
+  async function inviaReset() {
+    setErrore(null);
+    setAvviso(null);
+    const l = local.trim().toLowerCase().replace(/@.*/, "");
+    if (!l) return setErrore("Scrivi prima la tua mail, poi tocca «Password dimenticata».");
+    if (!supabaseConfigurato()) return;
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(`${l}@studio.unibo.it`, {
+      redirectTo: `${window.location.origin}/reset`,
+    });
+    if (error) return setErrore(error.message);
+    setAvviso("Ti abbiamo mandato una mail per reimpostare la password: apri il link e scegline una nuova.");
+  }
+
   async function submit() {
     setErrore(null);
     setAvviso(null);
@@ -829,6 +843,11 @@ function AccediScreen() {
           </div>
         </div>
         <input style={css(campo)} type="password" placeholder="Password (min 8 caratteri)" value={password} onChange={(e) => setPassword(e.target.value)} />
+        {modo === "accedi" && (
+          <button onClick={inviaReset} style={css("align-self:flex-start;background:transparent;border:0;color:rgba(250,243,231,.8);font-family:inherit;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer;padding:0")}>
+            Password dimenticata?
+          </button>
+        )}
       </div>
 
       {errore && <div style={css("margin-top:16px;font-size:13px;font-weight:700;color:#ffd7c2")}>{errore}</div>}

@@ -893,6 +893,32 @@ function ProfiloTab({
   const [caricamentoFoto, setCaricamentoFoto] = useState(false);
   const [salvato, setSalvato] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [mieCase, setMieCase] = useState<{ id: string; titolo: string; zona: string; prezzo: number; attivo: boolean }[]>([]);
+
+  useEffect(() => {
+    if (!supabaseConfigurato()) return;
+    const supabase = createClient();
+    supabase
+      .from("apartments")
+      .select("id, titolo, zona, attivo, rooms(prezzo_mensile, stato)")
+      .eq("host_id", user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (!data) return;
+        setMieCase(
+          data.map((a) => {
+            const libere = (a.rooms as { prezzo_mensile: number; stato: string }[] | null)?.filter((r) => r.stato === "libera") ?? [];
+            return { id: a.id as string, titolo: a.titolo as string, zona: a.zona as string, attivo: a.attivo as boolean, prezzo: libere.length ? Math.min(...libere.map((r) => r.prezzo_mensile)) : 0 };
+          }),
+        );
+      });
+  }, [user.id]);
+
+  async function eliminaCasa(id: string) {
+    if (!confirm("Eliminare questo annuncio? L'operazione è definitiva.")) return;
+    await createClient().from("apartments").delete().eq("id", id);
+    setMieCase((c) => c.filter((x) => x.id !== id));
+  }
 
   useEffect(() => {
     if (!supabaseConfigurato()) return;
@@ -1002,6 +1028,24 @@ function ProfiloTab({
         </span>
         <span style={css("font-size:18px")}>→</span>
       </a>
+
+      {/* Le mie case pubblicate */}
+      {mieCase.length > 0 && (
+        <>
+          <SezP titolo="Le mie case" />
+          <div style={css("display:flex;flex-direction:column;gap:8px")}>
+            {mieCase.map((c) => (
+              <div key={c.id} style={css("display:flex;align-items:center;gap:10px;border:2px solid #e5dccb;padding:10px 12px")}>
+                <div style={css("min-width:0;flex:1")}>
+                  <div style={css("font-size:14px;font-weight:800;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.titolo}</div>
+                  <div style={css("font-size:12px;color:#736b62;font-weight:600")}>{c.zona} · {c.prezzo} €{c.attivo ? "" : " · nascosto"}</div>
+                </div>
+                <button onClick={() => eliminaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Elimina</button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Dati */}
       <SezP titolo="I tuoi dati" />

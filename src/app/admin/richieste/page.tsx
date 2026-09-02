@@ -23,7 +23,7 @@ export default async function RichiestePage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("richieste")
-    .select("id, dati, created_at")
+    .select("id, dati, created_at, submitted_by, proponente:profiles(nome, cognome)")
     .eq("stato", "in_attesa")
     .order("created_at", { ascending: false });
 

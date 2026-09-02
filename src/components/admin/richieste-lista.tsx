@@ -15,7 +15,13 @@ interface Dati {
   servizi: string[]; descrizione: string; coinquilini: Coinq[];
   contatto_nome: string; contatto_telefono: string; contatto_whatsapp: string; contatto_email: string; contatto_note: string;
 }
-interface Richiesta { id: string; dati: Dati; created_at: string }
+interface Richiesta {
+  id: string;
+  dati: Dati;
+  created_at: string;
+  submitted_by: string | null;
+  proponente: { nome: string | null; cognome: string | null } | null;
+}
 
 export function RichiesteLista({ richieste, adminId }: { richieste: Richiesta[]; adminId: string }) {
   const router = useRouter();
@@ -29,7 +35,7 @@ export function RichiesteLista({ richieste, adminId }: { richieste: Richiesta[];
     const { data: apt, error } = await supabase
       .from("apartments")
       .insert({
-        host_id: adminId,
+        host_id: r.submitted_by ?? adminId, // l'annuncio è di chi lo ha proposto
         titolo: d.titolo, descrizione: d.descrizione, zona: d.zona, via: d.via,
         lat: coord?.lat ?? null, lng: coord?.lng ?? null, piano: d.piano, genere: d.genere,
         camere_totali: d.camere_totali, camere_occupate: d.camere_occupate, servizi: d.servizi,
@@ -86,6 +92,9 @@ export function RichiesteLista({ richieste, adminId }: { richieste: Richiesta[];
               <b className="text-[16px]">{d.titolo}</b>
               <span className="text-[13px] text-grigio">{d.zona} · {d.prezzo} €/mese · {libere} {libere === 1 ? "libera" : "libere"}/{d.camere_totali}</span>
               <span className="ml-auto text-[12px] text-grigio">{new Date(r.created_at).toLocaleDateString("it-IT")}</span>
+              <span className="w-full text-[12.5px] font-semibold text-arancio">
+                Proposto da: {[r.proponente?.nome, r.proponente?.cognome].filter(Boolean).join(" ") || "utente registrato"}
+              </span>
             </div>
             <div className="grid gap-3 p-4 text-[13.5px] sm:grid-cols-2">
               <div><b>Via:</b> {d.via || "—"} · {d.piano || "—"}</div>

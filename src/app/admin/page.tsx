@@ -34,10 +34,10 @@ export default async function AdminPage() {
   }
 
   const supabase = await createClient();
+  // L'admin vede tutti gli annunci (i propri e quelli approvati per altri utenti).
   const { data } = await supabase
     .from("apartments")
     .select("*, rooms(*), housemates(*)")
-    .eq("host_id", admin.id)
     .order("created_at", { ascending: false });
   const annunci = (data ?? []) as Annuncio[];
 

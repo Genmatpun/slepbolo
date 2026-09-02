@@ -18,7 +18,6 @@ export default async function ModificaPage({ params }: { params: Promise<{ id: s
     .from("apartments")
     .select("*, rooms(*), housemates(*)")
     .eq("id", id)
-    .eq("host_id", admin.id)
     .single();
   if (!data) notFound();
 

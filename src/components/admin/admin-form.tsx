@@ -86,7 +86,7 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
     const coord = via ? await geocodaVia(via, zona) : null;
 
     const payload = {
-      host_id: user.id,
+      host_id: initial?.host_id ?? user.id, // in modifica mantiene il proprietario originale
       titolo: titolo.trim(),
       descrizione,
       zona,

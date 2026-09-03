@@ -106,6 +106,8 @@ export const DEMO_ANNUNCI: Annuncio[] = SPECS.map((s) => {
               ? "ragazza"
               : "ragazzo",
       abitudini: DEMO_ABIT[i % DEMO_ABIT.length],
+      stato: "confermato",
+      scadenza_invito: null,
     })),
   };
 });

@@ -41,6 +41,8 @@ export function ProponiForm() {
   const [etaC, setEtaC] = useState("");
   const [corsoC, setCorsoC] = useState("");
   const [abitC, setAbitC] = useState<string[]>([]);
+  const [emailC, setEmailC] = useState("");
+  const [invitati, setInvitati] = useState<string[]>([]);
 
   const [errore, setErrore] = useState<string | null>(null);
   const [invio, setInvio] = useState(false);
@@ -80,6 +82,7 @@ export function ProponiForm() {
       disponibile_dal: dal, permanenza_minima_mesi: permanenza, cauzione, contratto,
       servizi, descrizione,
       coinquilini: coinq,
+      coinquilini_invitati: invitati,
       contatto_nome: cNome, contatto_telefono: cTel, contatto_whatsapp: cWa, contatto_email: cEmail, contatto_note: cNote,
     };
     const { error } = await supabase.from("richieste").insert({ submitted_by: user.id, dati });
@@ -168,6 +171,24 @@ export function ProponiForm() {
       </div>
       <div className="text-right">
         <Button variant="ghost" size="sm" onClick={aggiungiCoinq}>+ Aggiungi coinquilino</Button>
+      </div>
+
+      <div className="border-t border-linea pt-4">
+        <p className="mb-2 text-[13px] text-grigio"><b>Oppure invita un coinquilino già iscritto</b> con la sua mail UniBo: comparirà subito nell&apos;annuncio e avrà 24h per accettare (i dati arrivano dal suo profilo).</p>
+        {invitati.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {invitati.map((em, i) => (
+              <div key={i} className="flex items-center gap-2 border-2 border-linea px-3 py-2 text-sm">
+                <b>{em}</b>
+                <button onClick={() => setInvitati(invitati.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <Field label="Mail UniBo del coinquilino"><input className={inputClass} value={emailC} type="email" onChange={(e) => setEmailC(e.target.value)} placeholder="nome.cognome@studio.unibo.it" /></Field>
+          <Button variant="ghost" size="sm" onClick={() => { const v = emailC.trim().toLowerCase(); if (v.includes("@") && !invitati.includes(v)) { setInvitati((p) => [...p, v]); setEmailC(""); } }} className="h-[46px]">+ Invita</Button>
+        </div>
       </div>
 
       <Sez titolo="I tuoi contatti" />

@@ -46,6 +46,20 @@ export interface Housemate {
   genere: string | null;
   /** Preferenze di vita mostrate in scheda (es. "Non fumo", "Studio a casa"). */
   abitudini: string[];
+  /** "confermato" (manuale o invito accettato) | "in_attesa" (invito da confermare entro 24h). */
+  stato: string;
+  /** Scadenza dell'invito (solo per stato "in_attesa"). */
+  scadenza_invito: string | null;
+}
+
+/** Coinquilini da mostrare pubblicamente: confermati + inviti non ancora scaduti. */
+export function coinquiliniVisibili(housemates: Housemate[]): Housemate[] {
+  const ora = Date.now();
+  return housemates.filter(
+    (h) =>
+      h.stato === "confermato" ||
+      (h.stato === "in_attesa" && h.scadenza_invito != null && new Date(h.scadenza_invito).getTime() > ora),
+  );
 }
 
 export interface Apartment {

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getAnnuncio } from "@/lib/data";
-import { camereLibere, prezzoDa } from "@/lib/types";
+import { camereLibere, prezzoDa, coinquiliniVisibili } from "@/lib/types";
 import { distanzeSedi, personaCoinquilino } from "@/lib/constants";
 import { RoomsIndicator } from "@/components/rooms-indicator";
 import { TagAutomatici } from "@/components/badges";
@@ -80,7 +80,7 @@ export default async function AnnuncioPage({
       {/* CHI CI ABITA */}
       <Section titolo="Chi ci abita già">
         <div className="flex flex-wrap gap-3">
-          {a.housemates.map((h) => {
+          {coinquiliniVisibili(a.housemates).map((h) => {
             const per = personaCoinquilino(h.genere);
             return (
               <div
@@ -93,6 +93,11 @@ export default async function AnnuncioPage({
                 <b className="block text-[14.5px]">
                   {per.label}
                   {h.eta ? `, ${h.eta}` : ""}
+                  {h.stato === "in_attesa" ? (
+                    <span className="ml-1.5 border border-[#e4a11b] bg-[#fdf3dd] px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase text-[#9a6a00]">
+                      In attesa
+                    </span>
+                  ) : null}
                 </b>
                 {h.corso ? <span className="text-[12.5px] text-grigio">{h.corso}</span> : null}
                 {h.abitudini?.length > 0 && (

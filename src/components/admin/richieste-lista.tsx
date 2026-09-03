@@ -13,7 +13,7 @@ interface Dati {
   camere_totali: number; camere_occupate: number;
   tipo: string; prezzo: number; spese_incluse: boolean; spese_stimate: number | null;
   disponibile_dal: string; permanenza_minima_mesi: number; cauzione: string; contratto: string;
-  servizi: string[]; descrizione: string; coinquilini: Coinq[];
+  servizi: string[]; descrizione: string; coinquilini: Coinq[]; coinquilini_invitati?: string[];
   contatto_nome: string; contatto_telefono: string; contatto_whatsapp: string; contatto_email: string; contatto_note: string;
 }
 interface Richiesta {
@@ -64,6 +64,12 @@ export function RichiesteLista({ richieste, adminId }: { richieste: Richiesta[];
       await supabase.from("housemates").insert(
         d.coinquilini.map((c) => ({ apartment_id: apt.id, nome_visualizzato: c.nome ?? null, genere: c.genere ?? null, eta: c.eta ? Number(c.eta) : null, corso: c.corso || null, abitudini: c.abitudini ?? [] })),
       );
+    }
+    // Coinquilini invitati per mail UniBo: compaiono subito con 24h per accettare.
+    if (d.coinquilini_invitati?.length) {
+      for (const em of d.coinquilini_invitati) {
+        await supabase.rpc("invita_coinquilino", { p_apartment: apt.id, p_email: em });
+      }
     }
     await supabase.from("richieste").update({ stato: "pubblicato" }).eq("id", r.id);
     setBusy(null);

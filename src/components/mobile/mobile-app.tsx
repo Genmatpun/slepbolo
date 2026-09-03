@@ -40,7 +40,7 @@ export interface MobileAnnuncio {
   contratto: string;
   servizi: string[];
   descrizione: string;
-  coinq: { g: string; e: number | null; c: string; ab: string[] }[];
+  coinq: { g: string; e: number | null; c: string; ab: string[]; pending: boolean }[];
   contattoNome: string | null;
   telefono: string | null;
   whatsapp: string | null;
@@ -671,9 +671,14 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                     <div key={k} style={css("display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid #e5dccb")}>
                       <span style={css("width:42px;height:42px;flex:none;display:grid;place-items:center;background:#f0e7d6;font-size:22px")}>{per.emoji}</span>
                       <div style={css("flex:1")}>
-                        <div style={css("font-size:15px;font-weight:800;letter-spacing:-.02em")}>
-                          {per.label}
-                          {p.e ? `, ${p.e}` : ""}
+                        <div style={css("font-size:15px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:7px;flex-wrap:wrap")}>
+                          <span>
+                            {per.label}
+                            {p.e ? `, ${p.e}` : ""}
+                          </span>
+                          {p.pending ? (
+                            <span style={css("border:1px solid #e4a11b;background:#fdf3dd;color:#9a6a00;padding:2px 6px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase")}>In attesa</span>
+                          ) : null}
                         </div>
                         {p.c ? <div style={css("font-size:12.5px;color:#736b62;font-weight:600")}>{p.c}</div> : null}
                         {p.ab.length > 0 && (
@@ -1044,6 +1049,16 @@ function ProfiloTab({
         <span style={css("flex:1")}>
           <span style={css("display:block;font-size:15px;font-weight:800;letter-spacing:-.02em")}>Hai una stanza libera?</span>
           <span style={css("display:block;font-size:12.5px;color:rgba(250,243,231,.7)")}>Proponi la casa e cerca il coinquilino</span>
+        </span>
+        <span style={css("font-size:18px")}>→</span>
+      </a>
+
+      {/* Inviti come coinquilino */}
+      <a href="/inviti" style={css("margin-top:10px;display:flex;align-items:center;gap:12px;border:2px solid #1b1815;background:#faf3e7;color:#1b1815;padding:14px 16px;text-decoration:none")}>
+        <span style={css("font-size:20px")}>✉️</span>
+        <span style={css("flex:1")}>
+          <span style={css("display:block;font-size:15px;font-weight:800;letter-spacing:-.02em")}>Inviti come coinquilino</span>
+          <span style={css("display:block;font-size:12.5px;color:#736b62")}>Ti hanno aggiunto a una casa? Accetta qui</span>
         </span>
         <span style={css("font-size:18px")}>→</span>
       </a>

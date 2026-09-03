@@ -1,6 +1,6 @@
 import { Archivo } from "next/font/google";
 import { getAnnunci } from "@/lib/data";
-import { camereLibere, prezzoDa } from "@/lib/types";
+import { camereLibere, prezzoDa, coinquiliniVisibili } from "@/lib/types";
 import { MobileApp, type MobileAnnuncio } from "@/components/mobile/mobile-app";
 
 export const metadata = { title: "SLEPBOLO — app" };
@@ -56,7 +56,13 @@ export default async function AppPage() {
           : a.contratto_tipo || "Da concordare",
         servizi: a.servizi,
         descrizione: a.descrizione ?? "",
-        coinq: a.housemates.map((h) => ({ g: h.genere ?? "", e: h.eta, c: h.corso ?? "", ab: h.abitudini ?? [] })),
+        coinq: coinquiliniVisibili(a.housemates).map((h) => ({
+          g: h.genere ?? "",
+          e: h.eta,
+          c: h.corso ?? "",
+          ab: h.abitudini ?? [],
+          pending: h.stato === "in_attesa",
+        })),
         contattoNome: a.contatto_nome ?? null,
         telefono: a.contatto_telefono ?? null,
         whatsapp: a.contatto_whatsapp ?? null,

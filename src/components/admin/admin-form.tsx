@@ -40,9 +40,12 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
   const [contratto, setContratto] = useState(initial?.contratto_tipo ?? CONTRATTI[0]);
   const [descrizione, setDescrizione] = useState(initial?.descrizione ?? "");
   const [servizi, setServizi] = useState<string[]>(initial?.servizi ?? ["Wi-Fi", "Lavatrice", "Arredata"]);
+  // Solo i coinquilini "manuali" (non collegati a un profilo): quelli invitati si gestiscono a parte.
   const [coinq, setCoinq] = useState<Coinq[]>(
-    initial?.housemates.map((h) => ({ genere: h.genere ?? "ragazza", eta: h.eta ? String(h.eta) : "", corso: h.corso ?? "", abitudini: h.abitudini ?? [] })) ?? [],
+    initial?.housemates.filter((h) => !h.profile_id).map((h) => ({ genere: h.genere ?? "ragazza", eta: h.eta ? String(h.eta) : "", corso: h.corso ?? "", abitudini: h.abitudini ?? [] })) ?? [],
   );
+  const [invitati, setInvitati] = useState<string[]>([]);
+  const [emailC, setEmailC] = useState("");
   const [cNome, setCNome] = useState(initial?.contatto_nome ?? "");
   const [cTel, setCTel] = useState(initial?.contatto_telefono ?? "");
   const [cWa, setCWa] = useState(initial?.contatto_whatsapp ?? "");
@@ -113,9 +116,9 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
     if (initial) {
       const { error } = await supabase.from("apartments").update(payload).eq("id", initial.id);
       if (error) return setErrore("Errore nel salvataggio: " + error.message), setFase("");
-      // ricreo stanze e coinquilini
+      // ricreo stanze e SOLO i coinquilini manuali (gli invitati collegati restano)
       await supabase.from("rooms").delete().eq("apartment_id", initial.id);
-      await supabase.from("housemates").delete().eq("apartment_id", initial.id);
+      await supabase.from("housemates").delete().eq("apartment_id", initial.id).is("profile_id", null);
     } else {
       const { data, error } = await supabase.from("apartments").insert(payload).select("id").single();
       if (error || !data) return setErrore("Errore nel salvataggio: " + (error?.message ?? "")), setFase("");
@@ -151,7 +154,7 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
         })),
       );
     }
-    // Coinquilini
+    // Coinquilini manuali
     if (aptId && coinq.length) {
       await supabase.from("housemates").insert(
         coinq.map((c) => ({
@@ -163,6 +166,19 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
           abitudini: c.abitudini,
         })),
       );
+    }
+
+    // Coinquilini invitati per mail UniBo (compaiono subito, hanno 24h per accettare)
+    if (aptId && invitati.length) {
+      setFase("Invito i coinquilini…");
+      const nonTrovate: string[] = [];
+      for (const em of invitati) {
+        const { data: res } = await supabase.rpc("invita_coinquilino", { p_apartment: aptId, p_email: em });
+        if (res && res !== "ok" && res !== "gia_presente") nonTrovate.push(em);
+      }
+      if (nonTrovate.length) {
+        alert("Salvato. Questi non risultano iscritti a SLEPBOLO e NON sono stati aggiunti:\n" + nonTrovate.join("\n"));
+      }
     }
 
     setFase("");
@@ -288,6 +304,24 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
         </div>
         <div className="mt-2 text-right">
           <Button variant="ghost" size="sm" onClick={aggiungiCoinq}>+ Aggiungi coinquilino</Button>
+        </div>
+
+        <div className="mt-6 border-t border-linea pt-4">
+          <p className="mb-2 text-[13px] text-grigio"><b>Oppure invita un coinquilino registrato</b> con la sua mail UniBo: comparirà subito nell&apos;annuncio e avrà 24h per accettare (dati presi dal suo profilo).</p>
+          {invitati.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {invitati.map((em, i) => (
+                <div key={i} className="flex items-center gap-2 border-2 border-linea px-3 py-2 text-sm">
+                  <b>{em}</b>
+                  <button onClick={() => setInvitati(invitati.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field label="Mail UniBo del coinquilino"><input className={inputClass} value={emailC} type="email" onChange={(e) => setEmailC(e.target.value)} placeholder="nome.cognome@studio.unibo.it" /></Field>
+            <Button variant="ghost" size="sm" onClick={() => { const v = emailC.trim().toLowerCase(); if (v.includes("@") && !invitati.includes(v)) { setInvitati((p) => [...p, v]); setEmailC(""); } }}>+ Invita</Button>
+          </div>
         </div>
       </Sez>
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Field, inputClass, ChipToggle } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { RoomsIndicator } from "@/components/rooms-indicator";
-import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA } from "@/lib/constants";
+import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA, GENERI_COINQUILINO, ABITUDINI, personaCoinquilino } from "@/lib/constants";
 import { geocodaVia } from "@/lib/geocoding";
 import { createClient } from "@/lib/supabase/client";
 import type { Annuncio } from "@/lib/types";
@@ -17,7 +17,7 @@ const SERVIZI = [
 const CONTRATTI = ["Registrato — studenti (3+2)", "Registrato — transitorio", "Da concordare"];
 const CAUZIONI = ["1 mensilità", "2 mensilità", "Nessuna"];
 
-interface Coinq { nome: string; eta: string; corso: string }
+interface Coinq { genere: string; eta: string; corso: string; abitudini: string[] }
 
 export function AdminForm({ initial }: { initial?: Annuncio }) {
   const router = useRouter();
@@ -41,7 +41,7 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
   const [descrizione, setDescrizione] = useState(initial?.descrizione ?? "");
   const [servizi, setServizi] = useState<string[]>(initial?.servizi ?? ["Wi-Fi", "Lavatrice", "Arredata"]);
   const [coinq, setCoinq] = useState<Coinq[]>(
-    initial?.housemates.map((h) => ({ nome: h.nome_visualizzato, eta: h.eta ? String(h.eta) : "", corso: h.corso ?? "" })) ?? [],
+    initial?.housemates.map((h) => ({ genere: h.genere ?? "ragazza", eta: h.eta ? String(h.eta) : "", corso: h.corso ?? "", abitudini: h.abitudini ?? [] })) ?? [],
   );
   const [cNome, setCNome] = useState(initial?.contatto_nome ?? "");
   const [cTel, setCTel] = useState(initial?.contatto_telefono ?? "");
@@ -53,9 +53,10 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
   const [fotoEsistenti, setFotoEsistenti] = useState<string[]>(initial?.foto_urls ?? []);
   const [nuoveFoto, setNuoveFoto] = useState<File[]>([]);
 
-  const [nomeC, setNomeC] = useState("");
+  const [genereC, setGenereC] = useState<string>("ragazza");
   const [etaC, setEtaC] = useState("");
   const [corsoC, setCorsoC] = useState("");
+  const [abitC, setAbitC] = useState<string[]>([]);
 
   const [fase, setFase] = useState("");
   const [errore, setErrore] = useState<string | null>(null);
@@ -67,9 +68,8 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
     setServizi((p) => (p.includes(s) ? p.filter((x) => x !== s) : [...p, s]));
   }
   function aggiungiCoinq() {
-    if (!nomeC.trim()) return;
-    setCoinq((p) => [...p, { nome: nomeC.trim(), eta: etaC, corso: corsoC.trim() }]);
-    setNomeC(""); setEtaC(""); setCorsoC("");
+    setCoinq((p) => [...p, { genere: genereC, eta: etaC, corso: corsoC.trim(), abitudini: abitC }]);
+    setGenereC("ragazza"); setEtaC(""); setCorsoC(""); setAbitC([]);
   }
 
   async function salva() {
@@ -156,9 +156,11 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
       await supabase.from("housemates").insert(
         coinq.map((c) => ({
           apartment_id: aptId,
-          nome_visualizzato: c.nome,
+          nome_visualizzato: null,
+          genere: c.genere,
           eta: c.eta ? Number(c.eta) : null,
           corso: c.corso || null,
+          abitudini: c.abitudini,
         })),
       );
     }
@@ -254,22 +256,38 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
       </Sez>
 
       <Sez titolo="Chi ci abita già">
-        <p className="mb-3 text-[13px] text-grigio">Aggiungi i coinquilini attuali: nome, età, corso. Non serve che siano iscritti.</p>
+        <p className="mb-3 text-[13px] text-grigio">Per privacy niente nomi: solo genere, età, corso e stile di vita. Non serve che siano iscritti.</p>
         {coinq.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-2">
             {coinq.map((c, i) => (
               <div key={i} className="flex items-center gap-2 border-2 border-linea px-3 py-2 text-sm">
-                <b>{c.nome}</b><span className="text-grigio">{c.eta && `${c.eta} · `}{c.corso}</span>
+                <b>{personaCoinquilino(c.genere).label}</b>
+                <span className="text-grigio">{c.eta && `${c.eta} · `}{c.corso}{c.abitudini.length ? ` · ${c.abitudini.join(", ")}` : ""}</span>
                 <button onClick={() => setCoinq(coinq.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
               </div>
             ))}
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-[1fr_90px_1fr_auto] sm:items-end">
-          <Field label="Nome"><input className={inputClass} value={nomeC} onChange={(e) => setNomeC(e.target.value)} /></Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Genere">
+            <div className="flex flex-wrap gap-1.5">
+              {GENERI_COINQUILINO.map((g) => (
+                <ChipToggle key={g.value} attivo={genereC === g.value} onClick={() => setGenereC(g.value)}>{g.label}</ChipToggle>
+              ))}
+            </div>
+          </Field>
           <Field label="Età"><input className={inputClass} value={etaC} onChange={(e) => setEtaC(e.target.value)} inputMode="numeric" /></Field>
-          <Field label="Corso"><input className={inputClass} value={corsoC} onChange={(e) => setCorsoC(e.target.value)} /></Field>
-          <Button variant="ghost" size="sm" onClick={aggiungiCoinq} className="h-[46px]">Aggiungi</Button>
+          <Field label="Corso" wide><input className={inputClass} value={corsoC} onChange={(e) => setCorsoC(e.target.value)} /></Field>
+          <Field label="Stile di vita" wide>
+            <div className="flex flex-wrap gap-1.5">
+              {ABITUDINI.map((a) => (
+                <ChipToggle key={a} attivo={abitC.includes(a)} onClick={() => setAbitC((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a])}>{a}</ChipToggle>
+              ))}
+            </div>
+          </Field>
+        </div>
+        <div className="mt-2 text-right">
+          <Button variant="ghost" size="sm" onClick={aggiungiCoinq}>+ Aggiungi coinquilino</Button>
         </div>
       </Sez>
 

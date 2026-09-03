@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
 import { getAnnuncio } from "@/lib/data";
 import { camereLibere, prezzoDa } from "@/lib/types";
-import { distanzeSedi } from "@/lib/constants";
+import { distanzeSedi, personaCoinquilino } from "@/lib/constants";
 import { RoomsIndicator } from "@/components/rooms-indicator";
 import { TagAutomatici } from "@/components/badges";
 import { LABEL_GENERE, formattaMese } from "@/components/annuncio-card";
-import { iniziale } from "@/lib/utils";
 import { ContattaCasa } from "@/components/contatta-casa";
 import { SegnalaAnnuncio } from "@/components/segnala-annuncio";
 
@@ -81,21 +80,33 @@ export default async function AnnuncioPage({
       {/* CHI CI ABITA */}
       <Section titolo="Chi ci abita già">
         <div className="flex flex-wrap gap-3">
-          {a.housemates.map((h) => (
-            <div
-              key={h.id}
-              className="min-w-[150px] flex-1 border border-linea bg-crema p-3.5"
-            >
-              <div className="mb-2 grid h-8 w-8 place-items-center rounded-full bg-arancio text-[13px] font-bold text-white">
-                {iniziale(h.nome_visualizzato)}
+          {a.housemates.map((h) => {
+            const per = personaCoinquilino(h.genere);
+            return (
+              <div
+                key={h.id}
+                className="min-w-[150px] flex-1 border border-linea bg-crema p-3.5"
+              >
+                <div className="mb-2 grid h-8 w-8 place-items-center rounded-full bg-white text-[16px]">
+                  {per.emoji}
+                </div>
+                <b className="block text-[14.5px]">
+                  {per.label}
+                  {h.eta ? `, ${h.eta}` : ""}
+                </b>
+                {h.corso ? <span className="text-[12.5px] text-grigio">{h.corso}</span> : null}
+                {h.abitudini?.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {h.abitudini.map((x) => (
+                      <span key={x} className="border border-linea px-2 py-0.5 text-[11px] text-grigio">
+                        {x}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              <b className="block text-[14.5px]">
-                {h.nome_visualizzato}
-                {h.eta ? `, ${h.eta}` : ""}
-              </b>
-              <span className="text-[12.5px] text-grigio">{h.corso}</span>
-            </div>
-          ))}
+            );
+          })}
           {Array.from({ length: libere }, (_, i) => (
             <div
               key={`libera-${i}`}

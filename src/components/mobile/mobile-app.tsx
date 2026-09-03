@@ -2,8 +2,20 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
-import { ZONE_BOLOGNA, SEDI_UNIBO } from "@/lib/constants";
+import { ZONE_BOLOGNA, SEDI_UNIBO, personaCoinquilino } from "@/lib/constants";
 import { MappaBologna } from "./mappa-bologna";
+
+/** Riepilogo privacy-safe dei coinquilini: "2 ragazze · 1 ragazzo". */
+function riepilogoCoinq(coinq: { g: string }[]): string {
+  const f = coinq.filter((c) => c.g === "ragazza").length;
+  const m = coinq.filter((c) => c.g === "ragazzo").length;
+  const altro = coinq.length - f - m;
+  const parti: string[] = [];
+  if (f) parti.push(`${f} ${f === 1 ? "ragazza" : "ragazze"}`);
+  if (m) parti.push(`${m} ${m === 1 ? "ragazzo" : "ragazzi"}`);
+  if (altro) parti.push(`${altro} ${altro === 1 ? "persona" : "persone"}`);
+  return parti.join(" · ") || "Nessuno ancora";
+}
 
 // ============================================================
 // SLEPBOLO Mobile — app iOS-style (design "SLEPBOLO Mobile.dc.html")
@@ -28,7 +40,7 @@ export interface MobileAnnuncio {
   contratto: string;
   servizi: string[];
   descrizione: string;
-  coinq: { n: string; e: number | null; c: string }[];
+  coinq: { g: string; e: number | null; c: string; ab: string[] }[];
   contattoNome: string | null;
   telefono: string | null;
   whatsapp: string | null;
@@ -289,11 +301,6 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     </div>
   );
 
-  const av = (n: string, size: number) =>
-    css(
-      `width:${size}px;height:${size}px;flex:none;display:grid;place-items:center;background:#1b1815;color:#faf3e7;font-size:${Math.round(size * 0.4)}px;font-weight:800`,
-    );
-
   const tabDefs: [string, string][] = [
     ["scopri", "Scopri"],
     ["cerca", "Cerca"],
@@ -416,13 +423,15 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                               <div style={css("height:1px;background:#e5dccb")} />
                               <div style={css("display:flex;gap:8px;align-items:center")}>
                                 {a.coinq.slice(0, 3).map((c, k) => (
-                                  <span key={k} style={av(c.n, 26)}>
-                                    {c.n[0]}
+                                  <span
+                                    key={k}
+                                    style={css("width:26px;height:26px;flex:none;display:grid;place-items:center;background:#f0e7d6;font-size:15px")}
+                                  >
+                                    {personaCoinquilino(c.g).emoji}
                                   </span>
                                 ))}
                                 <span style={css("font-size:12.5px;color:#736b62;font-weight:600")}>
-                                  {a.coinq.map((c) => c.n).slice(0, 2).join(", ")}
-                                  {a.coinq.length > 2 ? ` +${a.coinq.length - 2}` : ""}
+                                  {riepilogoCoinq(a.coinq)}
                                 </span>
                               </div>
                               <div style={css("margin-top:auto;display:flex;gap:6px;flex-wrap:wrap")}>
@@ -656,18 +665,28 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
               </div>
               <div style={css("padding:18px 20px 0")}>
                 <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:12px")}>Chi ci abita già</div>
-                {det.coinq.map((p, k) => (
-                  <div key={k} style={css("display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #e5dccb")}>
-                    <span style={av(p.n, 42)}>{p.n[0]}</span>
-                    <div>
-                      <div style={css("font-size:15px;font-weight:800;letter-spacing:-.02em")}>
-                        {p.n}
-                        {p.e ? `, ${p.e}` : ""}
+                {det.coinq.map((p, k) => {
+                  const per = personaCoinquilino(p.g);
+                  return (
+                    <div key={k} style={css("display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid #e5dccb")}>
+                      <span style={css("width:42px;height:42px;flex:none;display:grid;place-items:center;background:#f0e7d6;font-size:22px")}>{per.emoji}</span>
+                      <div style={css("flex:1")}>
+                        <div style={css("font-size:15px;font-weight:800;letter-spacing:-.02em")}>
+                          {per.label}
+                          {p.e ? `, ${p.e}` : ""}
+                        </div>
+                        {p.c ? <div style={css("font-size:12.5px;color:#736b62;font-weight:600")}>{p.c}</div> : null}
+                        {p.ab.length > 0 && (
+                          <div style={css("display:flex;flex-wrap:wrap;gap:5px;margin-top:7px")}>
+                            {p.ab.map((x, j) => (
+                              <span key={j} style={css("border:1px solid #e5dccb;background:#faf3e7;color:#736b62;padding:3px 8px;font-size:11px;font-weight:700")}>{x}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div style={css("font-size:12.5px;color:#736b62;font-weight:600")}>{p.c}</div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <div style={css("padding:20px 20px 0")}>
                 <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:10px")}>Distanza dalle lezioni</div>

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { geocodaVia } from "@/lib/geocoding";
+import { personaCoinquilino } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 
-interface Coinq { nome: string; eta?: string; corso?: string }
+interface Coinq { genere?: string; nome?: string; eta?: string; corso?: string; abitudini?: string[] }
 interface Dati {
   titolo: string; zona: string; via: string; piano: string; genere: string;
   camere_totali: number; camere_occupate: number;
@@ -61,7 +62,7 @@ export function RichiesteLista({ richieste, adminId }: { richieste: Richiesta[];
     }
     if (d.coinquilini?.length) {
       await supabase.from("housemates").insert(
-        d.coinquilini.map((c) => ({ apartment_id: apt.id, nome_visualizzato: c.nome, eta: c.eta ? Number(c.eta) : null, corso: c.corso || null })),
+        d.coinquilini.map((c) => ({ apartment_id: apt.id, nome_visualizzato: c.nome ?? null, genere: c.genere ?? null, eta: c.eta ? Number(c.eta) : null, corso: c.corso || null, abitudini: c.abitudini ?? [] })),
       );
     }
     await supabase.from("richieste").update({ stato: "pubblicato" }).eq("id", r.id);
@@ -100,7 +101,7 @@ export function RichiesteLista({ richieste, adminId }: { richieste: Richiesta[];
               <div><b>Via:</b> {d.via || "—"} · {d.piano || "—"}</div>
               <div><b>Contratto:</b> {d.contratto} · Cauzione {d.cauzione}</div>
               <div><b>Contatti:</b> {[d.contatto_nome, d.contatto_telefono, d.contatto_whatsapp, d.contatto_email].filter(Boolean).join(" · ") || "—"}</div>
-              <div><b>Coinquilini:</b> {d.coinquilini?.length ? d.coinquilini.map((c) => `${c.nome}${c.eta ? ` (${c.eta})` : ""}`).join(", ") : "—"}</div>
+              <div><b>Coinquilini:</b> {d.coinquilini?.length ? d.coinquilini.map((c) => `${c.nome ?? personaCoinquilino(c.genere).label}${c.eta ? ` (${c.eta})` : ""}`).join(", ") : "—"}</div>
               {d.descrizione && <div className="sm:col-span-2 text-grigio">{d.descrizione}</div>}
               {d.servizi?.length ? <div className="sm:col-span-2 text-grigio">{d.servizi.join(" · ")}</div> : null}
             </div>

@@ -38,10 +38,14 @@ export interface Housemate {
   id: string;
   apartment_id: string;
   profile_id: string | null;
-  nome_visualizzato: string;
+  /** Non più mostrato pubblicamente (privacy). Mantenuto per compatibilità. */
+  nome_visualizzato: string | null;
   eta: number | null;
   corso: string | null;
+  /** "ragazza" | "ragazzo" | "altro" | null */
   genere: string | null;
+  /** Preferenze di vita mostrate in scheda (es. "Non fumo", "Studio a casa"). */
+  abitudini: string[];
 }
 
 export interface Apartment {

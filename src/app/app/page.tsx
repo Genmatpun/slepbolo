@@ -56,7 +56,7 @@ export default async function AppPage() {
           : a.contratto_tipo || "Da concordare",
         servizi: a.servizi,
         descrizione: a.descrizione ?? "",
-        coinq: a.housemates.map((h) => ({ n: h.nome_visualizzato, e: h.eta, c: h.corso ?? "" })),
+        coinq: a.housemates.map((h) => ({ g: h.genere ?? "", e: h.eta, c: h.corso ?? "", ab: h.abitudini ?? [] })),
         contattoNome: a.contatto_nome ?? null,
         telefono: a.contatto_telefono ?? null,
         whatsapp: a.contatto_whatsapp ?? null,

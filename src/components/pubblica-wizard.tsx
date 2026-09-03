@@ -9,6 +9,9 @@ import {
   ZONE_BOLOGNA,
   GENERI_CASA,
   TIPI_STANZA,
+  GENERI_COINQUILINO,
+  ABITUDINI,
+  personaCoinquilino,
 } from "@/lib/constants";
 import { geocodaVia } from "@/lib/geocoding";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
@@ -27,9 +30,10 @@ const SERVIZI_DISPONIBILI = [
 ];
 
 interface Coinquilino {
-  nome: string;
+  genere: string;
   eta: string;
   corso: string;
+  abitudini: string[];
 }
 
 interface Bozza {
@@ -156,9 +160,11 @@ export function PubblicaWizard() {
             await supabase.from("housemates").insert(
               b.coinquilini.map((c) => ({
                 apartment_id: apt.id,
-                nome_visualizzato: c.nome,
+                nome_visualizzato: null,
+                genere: c.genere,
                 eta: c.eta ? Number(c.eta) : null,
                 corso: c.corso,
+                abitudini: c.abitudini,
               })),
             );
           }
@@ -450,38 +456,40 @@ function ChiCiAbita({
   onChange: (c: Coinquilino[]) => void;
   libere: number;
 }) {
-  const [nome, setNome] = useState("");
+  const [genere, setGenere] = useState<string>("ragazza");
   const [eta, setEta] = useState("");
   const [corso, setCorso] = useState("");
+  const [abit, setAbit] = useState<string[]>([]);
 
   function aggiungi() {
-    if (!nome.trim()) return;
-    onChange([...coinquilini, { nome: nome.trim(), eta, corso: corso.trim() }]);
-    setNome("");
+    onChange([...coinquilini, { genere, eta, corso: corso.trim(), abitudini: abit }]);
+    setGenere("ragazza");
     setEta("");
     setCorso("");
+    setAbit([]);
   }
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-grigio">
-        Descrivi chi abita già in casa. Non serve che siano iscritti a SLEPBOLO: bastano nome,
-        età e corso.
+        Descrivi chi abita già in casa. Per privacy <b>niente nomi</b>: solo genere, età, corso e
+        stile di vita. Non serve che siano iscritti a SLEPBOLO.
       </p>
 
       {coinquilini.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {coinquilini.map((c, i) => (
             <div key={i} className="flex items-center gap-2 rounded-xl bg-crema px-3 py-2 text-sm">
-              <b>{c.nome}</b>
+              <b>{personaCoinquilino(c.genere).label}</b>
               <span className="text-grigio">
                 {c.eta && `${c.eta} · `}
                 {c.corso}
+                {c.abitudini.length ? ` · ${c.abitudini.join(", ")}` : ""}
               </span>
               <button
                 onClick={() => onChange(coinquilini.filter((_, j) => j !== i))}
                 className="text-grigio hover:text-rosso"
-                aria-label={`Rimuovi ${c.nome}`}
+                aria-label="Rimuovi coinquilino"
               >
                 ✕
               </button>
@@ -490,18 +498,31 @@ function ChiCiAbita({
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_90px_1fr_auto] sm:items-end">
-        <Field label="Nome">
-          <input className={inputClass} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Giulia" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Genere">
+          <div className="flex flex-wrap gap-1.5">
+            {GENERI_COINQUILINO.map((g) => (
+              <ChipToggle key={g.value} attivo={genere === g.value} onClick={() => setGenere(g.value)}>{g.label}</ChipToggle>
+            ))}
+          </div>
         </Field>
         <Field label="Età">
-          <input className={inputClass} value={eta} onChange={(e) => setEta(e.target.value)} inputMode="numeric" />
+          <input className={inputClass} value={eta} onChange={(e) => setEta(e.target.value)} inputMode="numeric" placeholder="Es. 23" />
         </Field>
-        <Field label="Corso">
+        <Field label="Corso" wide>
           <input className={inputClass} value={corso} onChange={(e) => setCorso(e.target.value)} placeholder="Es. Lettere" />
         </Field>
-        <Button variant="ghost" size="sm" onClick={aggiungi} className="h-[46px]">
-          Aggiungi
+        <Field label="Stile di vita" wide>
+          <div className="flex flex-wrap gap-1.5">
+            {ABITUDINI.map((a) => (
+              <ChipToggle key={a} attivo={abit.includes(a)} onClick={() => setAbit((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a])}>{a}</ChipToggle>
+            ))}
+          </div>
+        </Field>
+      </div>
+      <div className="text-right">
+        <Button variant="ghost" size="sm" onClick={aggiungi}>
+          + Aggiungi coinquilino
         </Button>
       </div>
 

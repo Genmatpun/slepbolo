@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { Field, inputClass, ChipToggle } from "@/components/field";
 import { Button } from "@/components/ui/button";
-import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA } from "@/lib/constants";
+import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA, GENERI_COINQUILINO, ABITUDINI, personaCoinquilino } from "@/lib/constants";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 
 const SERVIZI = ["Wi-Fi", "Lavatrice", "Arredata", "Balcone", "Lavastoviglie", "Aria condizionata", "Ammessi animali", "Si può fumare", "Bici/garage"];
 const CONTRATTI = ["Registrato — studenti (3+2)", "Registrato — transitorio", "Da concordare"];
 const CAUZIONI = ["1 mensilità", "2 mensilità", "Nessuna"];
 
-interface Coinq { nome: string; eta: string; corso: string }
+interface Coinq { genere: string; eta: string; corso: string; abitudini: string[] }
 
 export function ProponiForm() {
   const [titolo, setTitolo] = useState("");
@@ -37,9 +37,10 @@ export function ProponiForm() {
   const [cEmail, setCEmail] = useState("");
   const [cNote, setCNote] = useState("");
 
-  const [nomeC, setNomeC] = useState("");
+  const [genereC, setGenereC] = useState<string>("ragazza");
   const [etaC, setEtaC] = useState("");
   const [corsoC, setCorsoC] = useState("");
+  const [abitC, setAbitC] = useState<string[]>([]);
 
   const [errore, setErrore] = useState<string | null>(null);
   const [invio, setInvio] = useState(false);
@@ -49,9 +50,8 @@ export function ProponiForm() {
   const occValide = occ >= 0 && occ < tot;
 
   function aggiungiCoinq() {
-    if (!nomeC.trim()) return;
-    setCoinq((p) => [...p, { nome: nomeC.trim(), eta: etaC, corso: corsoC.trim() }]);
-    setNomeC(""); setEtaC(""); setCorsoC("");
+    setCoinq((p) => [...p, { genere: genereC, eta: etaC, corso: corsoC.trim(), abitudini: abitC }]);
+    setGenereC("ragazza"); setEtaC(""); setCorsoC(""); setAbitC([]);
   }
 
   function err(m: string) {
@@ -136,21 +136,38 @@ export function ProponiForm() {
       </div>
 
       <Sez titolo="Chi ci abita già" />
+      <p className="-mt-4 text-[13px] text-grigio">Per privacy <b>niente nomi</b>: indica solo genere, età, corso e stile di vita di chi già abita in casa.</p>
       {coinq.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {coinq.map((c, i) => (
             <div key={i} className="flex items-center gap-2 border-2 border-linea px-3 py-2 text-sm">
-              <b>{c.nome}</b><span className="text-grigio">{c.eta && `${c.eta} · `}{c.corso}</span>
+              <b>{personaCoinquilino(c.genere).label}</b>
+              <span className="text-grigio">{c.eta && `${c.eta} · `}{c.corso}{c.abitudini.length ? ` · ${c.abitudini.join(", ")}` : ""}</span>
               <button onClick={() => setCoinq(coinq.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
             </div>
           ))}
         </div>
       )}
-      <div className="grid gap-3 sm:grid-cols-[1fr_90px_1fr_auto] sm:items-end">
-        <Field label="Nome"><input className={inputClass} value={nomeC} onChange={(e) => setNomeC(e.target.value)} /></Field>
-        <Field label="Età"><input className={inputClass} value={etaC} onChange={(e) => setEtaC(e.target.value)} inputMode="numeric" /></Field>
-        <Field label="Corso"><input className={inputClass} value={corsoC} onChange={(e) => setCorsoC(e.target.value)} /></Field>
-        <Button variant="ghost" size="sm" onClick={aggiungiCoinq} className="h-[46px]">Aggiungi</Button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Genere">
+          <div className="flex flex-wrap gap-1.5">
+            {GENERI_COINQUILINO.map((g) => (
+              <ChipToggle key={g.value} attivo={genereC === g.value} onClick={() => setGenereC(g.value)}>{g.label}</ChipToggle>
+            ))}
+          </div>
+        </Field>
+        <Field label="Età"><input className={inputClass} value={etaC} onChange={(e) => setEtaC(e.target.value)} inputMode="numeric" placeholder="Es. 23" /></Field>
+        <Field label="Corso" wide><input className={inputClass} value={corsoC} onChange={(e) => setCorsoC(e.target.value)} placeholder="Es. Ingegneria" /></Field>
+        <Field label="Stile di vita" wide>
+          <div className="flex flex-wrap gap-1.5">
+            {ABITUDINI.map((a) => (
+              <ChipToggle key={a} attivo={abitC.includes(a)} onClick={() => setAbitC((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a])}>{a}</ChipToggle>
+            ))}
+          </div>
+        </Field>
+      </div>
+      <div className="text-right">
+        <Button variant="ghost" size="sm" onClick={aggiungiCoinq}>+ Aggiungi coinquilino</Button>
       </div>
 
       <Sez titolo="I tuoi contatti" />

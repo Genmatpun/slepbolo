@@ -43,6 +43,20 @@ export const TIPI_STANZA = [
   { value: "doppia", label: "Doppia" },
 ] as const;
 
+/** Genere del singolo coinquilino, mostrato al posto del nome (privacy). */
+export const GENERI_COINQUILINO = [
+  { value: "ragazza", label: "Ragazza" },
+  { value: "ragazzo", label: "Ragazzo" },
+  { value: "altro", label: "Altro" },
+] as const;
+
+/** Etichetta + emoji privacy-safe per un coinquilino (nessun nome). */
+export function personaCoinquilino(genere: string | null | undefined): { emoji: string; label: string } {
+  if (genere === "ragazza") return { emoji: "👩", label: "Ragazza" };
+  if (genere === "ragazzo") return { emoji: "👨", label: "Ragazzo" };
+  return { emoji: "🧑", label: "Coinquilino/a" };
+}
+
 export const SERVIZI_FILTRO = [
   "Spese incluse",
   "Wi-Fi",

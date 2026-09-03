@@ -44,6 +44,14 @@ const SPECS: Spec[] = [
 
 const HOST_ID = "00000000-0000-0000-0000-0000000000aa";
 
+// Preferenze di vita d'esempio, assegnate a rotazione ai coinquilini demo.
+const DEMO_ABIT: string[][] = [
+  ["Non fumo", "Studio a casa"],
+  ["Ordinato/a", "Cucino spesso"],
+  ["Rientro tardi", "Weekend fuori"],
+  ["Non fumo", "Ho un animale"],
+];
+
 export const DEMO_ANNUNCI: Annuncio[] = SPECS.map((s) => {
   const libere = s.tot - s.occ;
   return {
@@ -86,10 +94,18 @@ export const DEMO_ANNUNCI: Annuncio[] = SPECS.map((s) => {
       id: `${s.id}-h${i}`,
       apartment_id: s.id,
       profile_id: null,
-      nome_visualizzato: c.n,
+      nome_visualizzato: null,
       eta: c.e,
       corso: c.c,
-      genere: null,
+      genere:
+        s.genere === "ragazze"
+          ? "ragazza"
+          : s.genere === "ragazzi"
+            ? "ragazzo"
+            : i % 2 === 0
+              ? "ragazza"
+              : "ragazzo",
+      abitudini: DEMO_ABIT[i % DEMO_ABIT.length],
     })),
   };
 });

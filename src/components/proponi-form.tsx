@@ -5,6 +5,7 @@ import { Field, inputClass, ChipToggle } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA, GENERI_COINQUILINO, ABITUDINI, personaCoinquilino } from "@/lib/constants";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
+import { geocodaVia } from "@/lib/geocoding";
 
 const SERVIZI = ["Wi-Fi", "Lavatrice", "Arredata", "Balcone", "Lavastoviglie", "Aria condizionata", "Ammessi animali", "Si può fumare", "Bici/garage"];
 const CONTRATTI = ["Registrato — studenti (3+2)", "Registrato — transitorio", "Da concordare"];
@@ -75,28 +76,59 @@ export function ProponiForm() {
     if (!user) return err("Sessione scaduta: torna all'app e accedi di nuovo.");
 
     setInvio(true);
-    const dati = {
-      titolo: titolo.trim(), zona, via, piano, genere,
-      camere_totali: tot, camere_occupate: occ,
-      tipo, prezzo, spese_incluse: speseIncl, spese_stimate: speseIncl ? null : speseStim,
-      disponibile_dal: dal, permanenza_minima_mesi: permanenza, cauzione, contratto,
-      servizi, descrizione,
-      coinquilini: coinq,
-      coinquilini_invitati: invitati,
-      contatto_nome: cNome, contatto_telefono: cTel, contatto_whatsapp: cWa, contatto_email: cEmail, contatto_note: cNote,
-    };
-    const { error } = await supabase.from("richieste").insert({ submitted_by: user.id, dati });
+    // Pubblicazione diretta: l'annuncio va subito online ed è di chi lo pubblica.
+    const coord = via ? await geocodaVia(via, zona) : null;
+    const { data: apt, error } = await supabase
+      .from("apartments")
+      .insert({
+        host_id: user.id,
+        titolo: titolo.trim(), descrizione, zona, via,
+        lat: coord?.lat ?? null, lng: coord?.lng ?? null, piano, genere,
+        camere_totali: tot, camere_occupate: occ, servizi,
+        contratto_tipo: contratto, cauzione,
+        contatto_nome: cNome || null, contatto_telefono: cTel || null,
+        contatto_whatsapp: cWa || null, contatto_email: cEmail || null,
+        contatto_note: cNote || null, attivo: true,
+      })
+      .select("id")
+      .single();
+    if (error || !apt) { setInvio(false); return err("Errore nella pubblicazione: " + (error?.message ?? "")); }
+
+    if (libere > 0) {
+      await supabase.from("rooms").insert(
+        Array.from({ length: libere }, () => ({
+          apartment_id: apt.id, tipo, prezzo_mensile: prezzo,
+          spese_incluse: speseIncl, spese_stimate: speseIncl ? null : speseStim,
+          disponibile_dal: dal, permanenza_minima_mesi: permanenza, stato: "libera",
+        })),
+      );
+    }
+    if (coinq.length) {
+      await supabase.from("housemates").insert(
+        coinq.map((c) => ({ apartment_id: apt.id, nome_visualizzato: null, genere: c.genere, eta: c.eta ? Number(c.eta) : null, corso: c.corso || null, abitudini: c.abitudini })),
+      );
+    }
+    if (invitati.length) {
+      const nonTrovate: string[] = [];
+      for (const em of invitati) {
+        const { data: res } = await supabase.rpc("invita_coinquilino", { p_apartment: apt.id, p_email: em });
+        if (res && res !== "ok" && res !== "gia_presente") nonTrovate.push(em);
+      }
+      if (nonTrovate.length) {
+        alert("Annuncio pubblicato. Questi non risultano iscritti a SLEPBOLO e non sono stati aggiunti:\n" + nonTrovate.join("\n"));
+      }
+    }
+
     setInvio(false);
-    if (error) return err("Errore nell'invio: " + error.message);
     setFatto(true);
   }
 
   if (fatto) {
     return (
       <div className="border-2 border-verde bg-verde/[0.08] p-8 text-center">
-        <div className="text-[22px] font-black text-verde">Richiesta inviata!</div>
+        <div className="text-[22px] font-black text-verde">Annuncio pubblicato!</div>
         <p className="mx-auto mt-2 max-w-[44ch] text-[15px] text-inchiostro/80">
-          La controlliamo e la pubblichiamo a breve. Grazie: così aiuti altri studenti a trovare casa.
+          È già online: da ora chi cerca casa può trovarlo e contattarti. Grazie: così aiuti altri studenti a trovare casa.
         </p>
         <Button asChild className="mt-5"><a href="/app">Torna all&apos;app</a></Button>
       </div>
@@ -206,8 +238,8 @@ export function ProponiForm() {
       <div className="flex flex-wrap gap-1.5">{SERVIZI.map((s) => <ChipToggle key={s} attivo={servizi.includes(s)} onClick={() => setServizi((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s])}>{s}</ChipToggle>)}</div>
 
       <div className="border-t-2 border-inchiostro pt-5 text-right">
-        <Button onClick={invia} disabled={invio} size="lg">{invio ? "Invio…" : "Invia proposta"}</Button>
-        <p className="mt-2 text-[12.5px] text-grigio">{libere} {libere === 1 ? "camera libera" : "camere libere"} · verrà controllata prima di essere pubblicata.</p>
+        <Button onClick={invia} disabled={invio} size="lg">{invio ? "Pubblico…" : "Pubblica annuncio"}</Button>
+        <p className="mt-2 text-[12.5px] text-grigio">{libere} {libere === 1 ? "camera libera" : "camere libere"} · sarà subito online.</p>
       </div>
     </div>
   );

@@ -24,7 +24,7 @@ export default async function ProponiPage() {
         <div className="eyebrow mt-4">Hai una stanza libera?</div>
         <h1 className="mt-2 text-[32px]">Proponi la tua casa</h1>
         <p className="mt-2 max-w-[54ch] text-[15px] text-grigio">
-          Compila i dati: la controlliamo e la pubblichiamo. Chi cerca ti scriverà direttamente ai tuoi contatti.
+          Compila i dati e pubblica: l&apos;annuncio va subito online. Chi cerca ti scriverà direttamente ai tuoi contatti.
         </p>
         <div className="mt-2 mb-8 h-[2px] w-full bg-inchiostro" />
 

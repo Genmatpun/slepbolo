@@ -34,12 +34,21 @@ export default async function AdminPage() {
   }
 
   const supabase = await createClient();
-  // L'admin vede tutti gli annunci (i propri e quelli approvati per altri utenti).
+  // L'admin vede tutti gli annunci pubblicati dagli utenti.
   const { data } = await supabase
     .from("apartments")
     .select("*, rooms(*), housemates(*)")
     .order("created_at", { ascending: false });
   const annunci = (data ?? []) as Annuncio[];
+
+  // Chi ha pubblicato ogni annuncio (nome dal profilo).
+  const hostIds = [...new Set(annunci.map((a) => a.host_id).filter(Boolean))];
+  const { data: profs } = hostIds.length
+    ? await supabase.from("profiles").select("id, nome, cognome").in("id", hostIds)
+    : { data: [] as { id: string; nome: string | null; cognome: string | null }[] };
+  const nomeHost = new Map(
+    (profs ?? []).map((p) => [p.id, `${p.nome ?? ""} ${p.cognome ?? ""}`.trim()]),
+  );
 
   return (
     <Shell>
@@ -79,9 +88,12 @@ export default async function AdminPage() {
                     </span>
                   )}
                 </div>
-                <span className="text-[13px] text-grigio">
+                <span className="block text-[13px] text-grigio">
                   {a.zona} · {a.rooms?.length ? `${camereLibere(a)}/${a.camere_totali} libere` : "0 stanze"} ·{" "}
                   {a.housemates?.length ?? 0} coinquilini
+                </span>
+                <span className="block text-[12px] text-grigio">
+                  Pubblicato da <b className="text-inchiostro">{nomeHost.get(a.host_id) || "Utente"}</b>
                 </span>
               </div>
               <span className="text-grigio">→</span>

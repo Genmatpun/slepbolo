@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 
 const VOCI = [
   { href: "/admin", label: "Appartamenti" },
-  { href: "/admin/richieste", label: "Richieste" },
   { href: "/admin/utenti", label: "Utenti registrati" },
 ];
 

@@ -333,9 +333,8 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
         {/* ---------- CARICAMENTO ---------- */}
         {user === undefined && (
           <div style={css("position:absolute;inset:0;background:#a2001d;display:grid;place-items:center;animation:sbIn .3s ease both")}>
-            <span style={css("color:#faf3e7;font-size:20px;font-weight:900;letter-spacing:-.05em")}>
-              SLEP<span style={css("color:#e4572e")}>BOLO</span>
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-chiaro.png" alt="SLEPBOLO" style={css("height:64px;width:auto")} />
           </div>
         )}
 
@@ -818,15 +817,8 @@ function AccediScreen() {
 
   return (
     <div style={css("position:absolute;inset:0;background:#a2001d;color:#faf3e7;display:flex;flex-direction:column;padding:64px 26px 40px;overflow:auto;animation:sbIn .45s ease both")}>
-      <div style={css("display:flex;align-items:center;gap:10px")}>
-        <div style={css("position:relative;width:38px;height:38px;display:grid;place-items:center;background:#faf3e7;overflow:hidden")}>
-          <span style={css("position:relative;z-index:2;font-size:16px;font-weight:900;letter-spacing:-.05em;color:#a2001d")}>SB</span>
-          <span style={css("position:absolute;right:-7px;bottom:-8px;width:22px;height:22px;border-radius:99px;background:#e4572e")} />
-        </div>
-        <div style={css("font-size:20px;font-weight:900;letter-spacing:-.05em")}>
-          SLEP<span style={css("color:#e4572e")}>BOLO</span>
-        </div>
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo-chiaro.png" alt="SLEPBOLO" style={css("height:54px;width:auto;display:block")} />
 
       <h1 style={css("font-size:38px;line-height:.96;font-weight:900;letter-spacing:-.045em;margin:26px 0 6px;max-width:11ch")}>
         {modo === "registrati" ? "Solo studenti UniBo." : "Bentornato."}

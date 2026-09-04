@@ -334,7 +334,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
         {user === undefined && (
           <div style={css("position:absolute;inset:0;background:#a2001d;display:grid;place-items:center;animation:sbIn .3s ease both")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-chiaro.png" alt="SLEPBOLO" style={css("height:64px;width:auto")} />
+            <img src="/logo-chiaro.png" alt="SLEPBOLO" width={200} height={125} style={css("width:170px;height:auto;display:block")} />
           </div>
         )}
 
@@ -818,7 +818,7 @@ function AccediScreen() {
   return (
     <div style={css("position:absolute;inset:0;background:#a2001d;color:#faf3e7;display:flex;flex-direction:column;padding:64px 26px 40px;overflow:auto;animation:sbIn .45s ease both")}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-chiaro.png" alt="SLEPBOLO" style={css("height:54px;width:auto;display:block")} />
+      <img src="/logo-chiaro.png" alt="SLEPBOLO" width={192} height={120} style={css("width:160px;height:auto;align-self:flex-start;flex:none;display:block")} />
 
       <h1 style={css("font-size:38px;line-height:.96;font-weight:900;letter-spacing:-.045em;margin:26px 0 6px;max-width:11ch")}>
         {modo === "registrati" ? "Solo studenti UniBo." : "Bentornato."}
@@ -910,6 +910,8 @@ function ProfiloTab({
   const [salvato, setSalvato] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [mieCase, setMieCase] = useState<{ id: string; titolo: string; zona: string; prezzo: number; attivo: boolean }[]>([]);
+  const [inviti, setInviti] = useState<{ id: string; titolo: string; zona: string; genere: string; eta: number | null; corso: string; abitudini: string[]; scadenza: string }[]>([]);
+  const [rispondendo, setRispondendo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabaseConfigurato()) return;
@@ -934,6 +936,43 @@ function ProfiloTab({
     if (!confirm("Eliminare questo annuncio? L'operazione è definitiva.")) return;
     await createClient().from("apartments").delete().eq("id", id);
     setMieCase((c) => c.filter((x) => x.id !== id));
+  }
+
+  // Inviti come coinquilino ricevuti (in attesa, non scaduti)
+  useEffect(() => {
+    if (!supabaseConfigurato()) return;
+    createClient()
+      .from("housemates")
+      .select("id, genere, eta, corso, abitudini, scadenza_invito, apartments(titolo, zona)")
+      .eq("profile_id", user.id)
+      .eq("stato", "in_attesa")
+      .then(({ data }) => {
+        if (!data) return;
+        const ora = Date.now();
+        setInviti(
+          data
+            .filter((h) => h.scadenza_invito && new Date(h.scadenza_invito as string).getTime() > ora)
+            .map((h) => ({
+              id: h.id as string,
+              genere: (h.genere as string) ?? "",
+              eta: h.eta as number | null,
+              corso: (h.corso as string) ?? "",
+              abitudini: (h.abitudini as string[]) ?? [],
+              scadenza: h.scadenza_invito as string,
+              // @ts-expect-error join annidato
+              titolo: (h.apartments?.titolo as string) ?? "Una casa",
+              // @ts-expect-error join annidato
+              zona: (h.apartments?.zona as string) ?? "",
+            })),
+        );
+      });
+  }, [user.id]);
+
+  async function rispondiInvito(id: string, accetta: boolean) {
+    setRispondendo(id);
+    await createClient().rpc("rispondi_invito", { p_housemate: id, p_accetta: accetta });
+    setRispondendo(null);
+    setInviti((v) => v.filter((x) => x.id !== id));
   }
 
   useEffect(() => {
@@ -1045,15 +1084,41 @@ function ProfiloTab({
         <span style={css("font-size:18px")}>→</span>
       </a>
 
-      {/* Inviti come coinquilino */}
-      <a href="/inviti" style={css("margin-top:10px;display:flex;align-items:center;gap:12px;border:2px solid #1b1815;background:#faf3e7;color:#1b1815;padding:14px 16px;text-decoration:none")}>
-        <span style={css("font-size:20px")}>✉️</span>
-        <span style={css("flex:1")}>
-          <span style={css("display:block;font-size:15px;font-weight:800;letter-spacing:-.02em")}>Inviti come coinquilino</span>
-          <span style={css("display:block;font-size:12.5px;color:#736b62")}>Ti hanno aggiunto a una casa? Accetta qui</span>
-        </span>
-        <span style={css("font-size:18px")}>→</span>
-      </a>
+      {/* Inviti come coinquilino (inline, con Accetta/Rifiuta) */}
+      {inviti.length > 0 && (
+        <div style={css("margin-top:14px;border:2px solid #a2001d;background:#fffdf9")}>
+          <div style={css("padding:11px 16px;background:#a2001d;color:#faf3e7;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase")}>
+            Inviti come coinquilino · {inviti.length}
+          </div>
+          {inviti.map((inv) => {
+            const per = personaCoinquilino(inv.genere);
+            return (
+              <div key={inv.id} style={css("padding:14px 16px;border-top:1px solid #e5dccb")}>
+                <div style={css("font-size:16px;font-weight:900;letter-spacing:-.02em")}>{inv.titolo}</div>
+                <div style={css("font-size:12.5px;color:#736b62;margin-top:2px")}>
+                  {inv.zona} · comparirai come {per.emoji} {per.label}{inv.eta ? `, ${inv.eta}` : ""}
+                </div>
+                <div style={css("display:flex;gap:8px;margin-top:11px")}>
+                  <button
+                    onClick={() => rispondiInvito(inv.id, true)}
+                    disabled={rispondendo === inv.id}
+                    style={css("flex:1;height:44px;border:0;background:#1b1815;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}
+                  >
+                    {rispondendo === inv.id ? "…" : "Accetta"}
+                  </button>
+                  <button
+                    onClick={() => rispondiInvito(inv.id, false)}
+                    disabled={rispondendo === inv.id}
+                    style={css("flex:1;height:44px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}
+                  >
+                    Rifiuta
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Le mie case pubblicate */}
       {mieCase.length > 0 && (

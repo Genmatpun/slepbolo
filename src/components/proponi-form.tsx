@@ -171,55 +171,63 @@ export function ProponiForm() {
       </div>
 
       <Sez titolo="Chi ci abita già" />
-      <p className="-mt-4 text-[13px] text-grigio">Per privacy <b>niente nomi</b>: indica solo genere, età, corso e stile di vita di chi già abita in casa.</p>
-      {coinq.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {coinq.map((c, i) => (
-            <div key={i} className="flex items-center gap-2 border-2 border-linea px-3 py-2 text-sm">
-              <b>{personaCoinquilino(c.genere).label}</b>
-              <span className="text-grigio">{c.eta && `${c.eta} · `}{c.corso}{c.abitudini.length ? ` · ${c.abitudini.join(", ")}` : ""}</span>
-              <button onClick={() => setCoinq(coinq.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Genere">
-          <div className="flex flex-wrap gap-1.5">
-            {GENERI_COINQUILINO.map((g) => (
-              <ChipToggle key={g.value} attivo={genereC === g.value} onClick={() => setGenereC(g.value)}>{g.label}</ChipToggle>
-            ))}
-          </div>
-        </Field>
-        <Field label="Età"><input className={inputClass} value={etaC} onChange={(e) => setEtaC(e.target.value)} inputMode="numeric" placeholder="Es. 23" /></Field>
-        <Field label="Corso" wide><input className={inputClass} value={corsoC} onChange={(e) => setCorsoC(e.target.value)} placeholder="Es. Ingegneria" /></Field>
-        <Field label="Stile di vita" wide>
-          <div className="flex flex-wrap gap-1.5">
-            {ABITUDINI.map((a) => (
-              <ChipToggle key={a} attivo={abitC.includes(a)} onClick={() => setAbitC((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a])}>{a}</ChipToggle>
-            ))}
-          </div>
-        </Field>
-      </div>
-      <div className="text-right">
-        <Button variant="ghost" size="sm" onClick={aggiungiCoinq}>+ Aggiungi coinquilino</Button>
-      </div>
+      <p className="-mt-4 text-[13px] text-grigio">Aggiungi i coinquilini che vivono già in casa: <b>uno o più</b>. Per privacy non si mostrano cognomi.</p>
 
-      <div className="border-t border-linea pt-4">
-        <p className="mb-2 text-[13px] text-grigio"><b>Oppure invita un coinquilino già iscritto</b> con la sua mail UniBo: comparirà subito nell&apos;annuncio e avrà 24h per accettare (i dati arrivano dal suo profilo).</p>
+      {/* 1 · via mail (consigliato) */}
+      <div className="border-2 border-linea p-4">
+        <div className="text-[13px] font-extrabold">1 · Aggiungi tramite mail UniBo <span className="font-normal text-grigio">— consigliato</span></div>
+        <p className="mb-3 mt-1 text-[12.5px] text-grigio">Se il coinquilino è già iscritto, compare subito nell&apos;annuncio con i dati del suo profilo e ha 24h per accettare. Puoi aggiungerne quanti vuoi.</p>
         {invitati.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
             {invitati.map((em, i) => (
               <div key={i} className="flex items-center gap-2 border-2 border-linea px-3 py-2 text-sm">
                 <b>{em}</b>
-                <button onClick={() => setInvitati(invitati.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
+                <button type="button" onClick={() => setInvitati(invitati.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
               </div>
             ))}
           </div>
         )}
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
           <Field label="Mail UniBo del coinquilino"><input className={inputClass} value={emailC} type="email" onChange={(e) => setEmailC(e.target.value)} placeholder="nome.cognome@studio.unibo.it" /></Field>
-          <Button variant="ghost" size="sm" onClick={() => { const v = emailC.trim().toLowerCase(); if (v.includes("@") && !invitati.includes(v)) { setInvitati((p) => [...p, v]); setEmailC(""); } }} className="h-[46px]">+ Invita</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => { const v = emailC.trim().toLowerCase(); if (v.includes("@") && !invitati.includes(v)) { setInvitati((p) => [...p, v]); setEmailC(""); } }} className="h-[46px]">+ Aggiungi coinquilino</Button>
+        </div>
+      </div>
+
+      {/* 2 · manuale */}
+      <div className="border-2 border-linea p-4">
+        <div className="text-[13px] font-extrabold">2 · Oppure aggiungi manualmente</div>
+        <p className="mb-3 mt-1 text-[12.5px] text-grigio">Per chi non è ancora iscritto: indica genere, età, corso e stile di vita. Anche qui puoi aggiungerne più di uno.</p>
+        {coinq.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {coinq.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 border-2 border-linea px-3 py-2 text-sm">
+                <b>{personaCoinquilino(c.genere).label}</b>
+                <span className="text-grigio">{c.eta && `${c.eta} · `}{c.corso}{c.abitudini.length ? ` · ${c.abitudini.join(", ")}` : ""}</span>
+                <button type="button" onClick={() => setCoinq(coinq.filter((_, j) => j !== i))} className="text-grigio hover:text-rosso">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Genere">
+            <div className="flex flex-wrap gap-1.5">
+              {GENERI_COINQUILINO.map((g) => (
+                <ChipToggle key={g.value} attivo={genereC === g.value} onClick={() => setGenereC(g.value)}>{g.label}</ChipToggle>
+              ))}
+            </div>
+          </Field>
+          <Field label="Età"><input className={inputClass} value={etaC} onChange={(e) => setEtaC(e.target.value)} inputMode="numeric" placeholder="Es. 23" /></Field>
+          <Field label="Corso" wide><input className={inputClass} value={corsoC} onChange={(e) => setCorsoC(e.target.value)} placeholder="Es. Ingegneria" /></Field>
+          <Field label="Stile di vita" wide>
+            <div className="flex flex-wrap gap-1.5">
+              {ABITUDINI.map((a) => (
+                <ChipToggle key={a} attivo={abitC.includes(a)} onClick={() => setAbitC((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a])}>{a}</ChipToggle>
+              ))}
+            </div>
+          </Field>
+        </div>
+        <div className="mt-3 text-right">
+          <Button type="button" variant="ghost" size="sm" onClick={aggiungiCoinq}>+ Aggiungi coinquilino</Button>
         </div>
       </div>
 

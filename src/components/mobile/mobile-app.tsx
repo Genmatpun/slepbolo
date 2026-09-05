@@ -1084,13 +1084,17 @@ function ProfiloTab({
         <span style={css("font-size:18px")}>→</span>
       </a>
 
-      {/* Inviti come coinquilino (inline, con Accetta/Rifiuta) */}
-      {inviti.length > 0 && (
-        <div style={css("margin-top:14px;border:2px solid #a2001d;background:#fffdf9")}>
-          <div style={css("padding:11px 16px;background:#a2001d;color:#faf3e7;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase")}>
-            Inviti come coinquilino · {inviti.length}
+      {/* Inviti come coinquilino (sempre visibile, con Accetta/Rifiuta) */}
+      <div style={css("margin-top:14px;border:2px solid #a2001d;background:#fffdf9")}>
+        <div style={css("padding:11px 16px;background:#a2001d;color:#faf3e7;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase")}>
+          Inviti come coinquilino{inviti.length ? ` · ${inviti.length}` : ""}
+        </div>
+        {inviti.length === 0 ? (
+          <div style={css("padding:16px;font-size:13px;color:#736b62;line-height:1.4")}>
+            Nessun invito in questo momento. Quando qualcuno ti aggiunge come coinquilino di una casa, la richiesta compare qui e hai 24h per accettarla.
           </div>
-          {inviti.map((inv) => {
+        ) : (
+          inviti.map((inv) => {
             const per = personaCoinquilino(inv.genere);
             return (
               <div key={inv.id} style={css("padding:14px 16px;border-top:1px solid #e5dccb")}>
@@ -1116,9 +1120,9 @@ function ProfiloTab({
                 </div>
               </div>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
       {/* Le mie case pubblicate */}
       {mieCase.length > 0 && (

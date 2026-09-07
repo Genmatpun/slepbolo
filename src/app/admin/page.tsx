@@ -53,15 +53,15 @@ export default async function AdminPage() {
   return (
     <Shell>
       <AdminNav />
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[15px] text-grigio">
           {annunci.length} {annunci.length === 1 ? "annuncio" : "annunci"} · {admin.email}
         </p>
-        <div className="flex gap-2">
-          <Button asChild variant="ghost" size="sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <Button asChild variant="ghost" size="sm" className="w-full sm:w-auto">
             <Link href="/modulo" target="_blank">Modulo host (PDF)</Link>
           </Button>
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link href="/admin/nuovo">+ Nuovo appartamento</Link>
           </Button>
         </div>

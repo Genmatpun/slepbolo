@@ -49,6 +49,8 @@ export function ProponiForm({ iniziale }: { iniziale?: Annuncio }) {
   const [abitC, setAbitC] = useState<string[]>([]);
   const [emailC, setEmailC] = useState("");
   const [invitati, setInvitati] = useState<string[]>([]);
+  const [fotoEsistenti, setFotoEsistenti] = useState<string[]>(iniziale?.foto_urls ?? []);
+  const [nuoveFoto, setNuoveFoto] = useState<File[]>([]);
 
   const [errore, setErrore] = useState<string | null>(null);
   const [invio, setInvio] = useState(false);
@@ -107,6 +109,17 @@ export function ProponiForm({ iniziale }: { iniziale?: Annuncio }) {
         .single();
       if (error || !apt) { setInvio(false); return err("Errore nella pubblicazione: " + (error?.message ?? "")); }
       aptId = apt.id as string;
+    }
+
+    // Foto: carico le nuove nel bucket "foto" e aggiorno l'elenco (tengo quelle esistenti)
+    if (aptId) {
+      const urls = [...fotoEsistenti];
+      for (const file of nuoveFoto) {
+        const path = `${user.id}/${aptId}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
+        const { error: upErr } = await supabase.storage.from("foto").upload(path, file, { upsert: true });
+        if (!upErr) urls.push(supabase.storage.from("foto").getPublicUrl(path).data.publicUrl);
+      }
+      await supabase.from("apartments").update({ foto_urls: urls }).eq("id", aptId);
     }
 
     if (aptId && libere > 0) {
@@ -185,6 +198,29 @@ export function ProponiForm({ iniziale }: { iniziale?: Annuncio }) {
         <Field label="Permanenza minima"><select className={inputClass} value={permanenza} onChange={(e) => setPermanenza(Number(e.target.value))}><option value={3}>3 mesi</option><option value={6}>6 mesi</option><option value={12}>12 mesi</option></select></Field>
         <Field label="Cauzione"><select className={inputClass} value={cauzione} onChange={(e) => setCauzione(e.target.value)}>{CAUZIONI.map((c) => <option key={c}>{c}</option>)}</select></Field>
         <Field label="Contratto"><select className={inputClass} value={contratto} onChange={(e) => setContratto(e.target.value)}>{CONTRATTI.map((c) => <option key={c}>{c}</option>)}</select></Field>
+      </div>
+
+      <Sez titolo="Foto della casa" />
+      <p className="-mt-4 text-[13px] text-grigio">Aggiungi foto vere di camera e spazi comuni: gli annunci <b>con foto</b> ricevono molte più richieste.</p>
+      <div className="flex flex-wrap gap-3">
+        {fotoEsistenti.map((u, i) => (
+          <div key={u} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={u} alt="Foto casa" className="h-24 w-24 border-2 border-linea object-cover" />
+            <button type="button" onClick={() => setFotoEsistenti(fotoEsistenti.filter((_, j) => j !== i))} className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center border-2 border-inchiostro bg-crema text-xs font-bold">✕</button>
+          </div>
+        ))}
+        {nuoveFoto.map((f, i) => (
+          <div key={i} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={URL.createObjectURL(f)} alt="Nuova foto" className="h-24 w-24 border-2 border-linea object-cover" />
+            <button type="button" onClick={() => setNuoveFoto(nuoveFoto.filter((_, j) => j !== i))} className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center border-2 border-inchiostro bg-crema text-xs font-bold">✕</button>
+          </div>
+        ))}
+        <label className="flex h-24 w-24 cursor-pointer items-center justify-center border-2 border-dashed border-grigio text-3xl text-grigio hover:border-inchiostro hover:text-inchiostro">
+          +
+          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) setNuoveFoto((p) => [...p, ...fs]); e.target.value = ""; }} />
+        </label>
       </div>
 
       <Sez titolo="Chi ci abita già" />

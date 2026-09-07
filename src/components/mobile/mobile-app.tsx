@@ -979,7 +979,7 @@ function ProfiloTab({
   }
 
   async function esciDaCasa(id: string) {
-    if (!confirm("Uscire da questa casa? Non comparirai più tra i coinquilini dell'annuncio.")) return;
+    if (!confirm("Confermi di non abitare più qui? Non comparirai più tra i coinquilini dell'annuncio.")) return;
     await createClient().from("housemates").delete().eq("apartment_id", id).eq("profile_id", user.id);
     setMieCase((c) => c.filter((x) => x.id !== id));
   }
@@ -1187,7 +1187,7 @@ function ProfiloTab({
                 {c.sonoHost ? (
                   <button onClick={() => eliminaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Elimina</button>
                 ) : (
-                  <button onClick={() => esciDaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Esci</button>
+                  <button onClick={() => esciDaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;white-space:nowrap")}>Non abito più qui</button>
                 )}
               </div>
             ))}

@@ -187,6 +187,13 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   // Riparte dalla prima foto quando cambia la card in Scopri
   useEffect(() => { setScopriFoto(0); }, [idx]);
 
+  // A ogni riapertura dell'app ripropone anche le case skippate (riparte da capo in Esplora)
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === "visible") setIdx(0); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   async function logout() {
     if (supabaseConfigurato()) await createClient().auth.signOut();
     setUser(null);
@@ -375,6 +382,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                           <div>
                             <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em")}>Hai visto tutto.</div>
                             <div style={css("font-size:13.5px;color:#736b62;margin-top:6px")}>Le case salvate sono nel tab Salvati.</div>
+                            <button onClick={() => setIdx(0)} style={css("margin-top:16px;border:2px solid #1b1815;background:#1b1815;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;padding:12px 20px;cursor:pointer")}>Rivedi le case</button>
                           </div>
                         )}
                       </div>

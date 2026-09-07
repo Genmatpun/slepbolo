@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { Field, inputClass, ChipToggle } from "@/components/field";
 import { Button } from "@/components/ui/button";
-import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA, GENERI_COINQUILINO, ABITUDINI, personaCoinquilino } from "@/lib/constants";
+import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA, GENERI_COINQUILINO, ABIT_CATEGORIE, personaCoinquilino } from "@/lib/constants";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 import { geocodaVia } from "@/lib/geocoding";
+import type { Annuncio } from "@/lib/types";
 
 const SERVIZI = ["Wi-Fi", "Lavatrice", "Arredata", "Balcone", "Lavastoviglie", "Aria condizionata", "Ammessi animali", "Si può fumare", "Bici/garage"];
 const CONTRATTI = ["Registrato — studenti (3+2)", "Registrato — transitorio", "Da concordare"];
@@ -13,30 +14,34 @@ const CAUZIONI = ["1 mensilità", "2 mensilità", "Nessuna"];
 
 interface Coinq { genere: string; eta: string; corso: string; abitudini: string[] }
 
-export function ProponiForm() {
-  const [titolo, setTitolo] = useState("");
-  const [zona, setZona] = useState<string>(ZONE_BOLOGNA[0]);
-  const [via, setVia] = useState("");
-  const [piano, setPiano] = useState("");
-  const [genere, setGenere] = useState<string>("misto");
-  const [tot, setTot] = useState(3);
-  const [occ, setOcc] = useState(2);
-  const [tipo, setTipo] = useState<string>("singola");
-  const [prezzo, setPrezzo] = useState(380);
-  const [speseIncl, setSpeseIncl] = useState(true);
-  const [speseStim, setSpeseStim] = useState(50);
-  const [dal, setDal] = useState("2026-09-01");
-  const [permanenza, setPermanenza] = useState(6);
-  const [cauzione, setCauzione] = useState(CAUZIONI[0]);
-  const [contratto, setContratto] = useState(CONTRATTI[0]);
-  const [descrizione, setDescrizione] = useState("");
-  const [servizi, setServizi] = useState<string[]>(["Wi-Fi", "Lavatrice", "Arredata"]);
-  const [coinq, setCoinq] = useState<Coinq[]>([]);
-  const [cNome, setCNome] = useState("");
-  const [cTel, setCTel] = useState("");
-  const [cWa, setCWa] = useState("");
-  const [cEmail, setCEmail] = useState("");
-  const [cNote, setCNote] = useState("");
+export function ProponiForm({ iniziale }: { iniziale?: Annuncio }) {
+  const modifica = !!iniziale;
+  const room0 = iniziale?.rooms.find((r) => r.stato === "libera") ?? iniziale?.rooms[0];
+  const [titolo, setTitolo] = useState(iniziale?.titolo ?? "");
+  const [zona, setZona] = useState<string>(iniziale?.zona ?? ZONE_BOLOGNA[0]);
+  const [via, setVia] = useState(iniziale?.via ?? "");
+  const [piano, setPiano] = useState(iniziale?.piano ?? "");
+  const [genere, setGenere] = useState<string>(iniziale?.genere ?? "misto");
+  const [tot, setTot] = useState(iniziale?.camere_totali ?? 3);
+  const [occ, setOcc] = useState(iniziale?.camere_occupate ?? 2);
+  const [tipo, setTipo] = useState<string>(room0?.tipo ?? "singola");
+  const [prezzo, setPrezzo] = useState(room0?.prezzo_mensile ?? 380);
+  const [speseIncl, setSpeseIncl] = useState(room0?.spese_incluse ?? true);
+  const [speseStim, setSpeseStim] = useState(room0?.spese_stimate ?? 50);
+  const [dal, setDal] = useState(room0?.disponibile_dal ?? "2026-09-01");
+  const [permanenza, setPermanenza] = useState(room0?.permanenza_minima_mesi ?? 6);
+  const [cauzione, setCauzione] = useState(iniziale?.cauzione ?? CAUZIONI[0]);
+  const [contratto, setContratto] = useState(iniziale?.contratto_tipo ?? CONTRATTI[0]);
+  const [descrizione, setDescrizione] = useState(iniziale?.descrizione ?? "");
+  const [servizi, setServizi] = useState<string[]>(iniziale?.servizi ?? ["Wi-Fi", "Lavatrice", "Arredata"]);
+  const [coinq, setCoinq] = useState<Coinq[]>(
+    iniziale?.housemates.filter((h) => !h.profile_id).map((h) => ({ genere: h.genere ?? "ragazza", eta: h.eta ? String(h.eta) : "", corso: h.corso ?? "", abitudini: h.abitudini ?? [] })) ?? [],
+  );
+  const [cNome, setCNome] = useState(iniziale?.contatto_nome ?? "");
+  const [cTel, setCTel] = useState(iniziale?.contatto_telefono ?? "");
+  const [cWa, setCWa] = useState(iniziale?.contatto_whatsapp ?? "");
+  const [cEmail, setCEmail] = useState(iniziale?.contatto_email ?? "");
+  const [cNote, setCNote] = useState(iniziale?.contatto_note ?? "");
 
   const [genereC, setGenereC] = useState<string>("ragazza");
   const [etaC, setEtaC] = useState("");
@@ -76,46 +81,56 @@ export function ProponiForm() {
     if (!user) return err("Sessione scaduta: torna all'app e accedi di nuovo.");
 
     setInvio(true);
-    // Pubblicazione diretta: l'annuncio va subito online ed è di chi lo pubblica.
     const coord = via ? await geocodaVia(via, zona) : null;
-    const { data: apt, error } = await supabase
-      .from("apartments")
-      .insert({
-        host_id: user.id,
-        titolo: titolo.trim(), descrizione, zona, via,
-        lat: coord?.lat ?? null, lng: coord?.lng ?? null, piano, genere,
-        camere_totali: tot, camere_occupate: occ, servizi,
-        contratto_tipo: contratto, cauzione,
-        contatto_nome: cNome || null, contatto_telefono: cTel || null,
-        contatto_whatsapp: cWa || null, contatto_email: cEmail || null,
-        contatto_note: cNote || null, attivo: true,
-      })
-      .select("id")
-      .single();
-    if (error || !apt) { setInvio(false); return err("Errore nella pubblicazione: " + (error?.message ?? "")); }
+    const datiCasa = {
+      titolo: titolo.trim(), descrizione, zona, via,
+      lat: coord?.lat ?? iniziale?.lat ?? null, lng: coord?.lng ?? iniziale?.lng ?? null, piano, genere,
+      camere_totali: tot, camere_occupate: occ, servizi,
+      contratto_tipo: contratto, cauzione,
+      contatto_nome: cNome || null, contatto_telefono: cTel || null,
+      contatto_whatsapp: cWa || null, contatto_email: cEmail || null,
+      contatto_note: cNote || null,
+    };
 
-    if (libere > 0) {
+    let aptId = iniziale?.id;
+    if (modifica && iniziale) {
+      const { error } = await supabase.from("apartments").update(datiCasa).eq("id", iniziale.id);
+      if (error) { setInvio(false); return err("Errore nel salvataggio: " + error.message); }
+      // rifaccio stanze e SOLO i coinquilini manuali (gli invitati collegati restano)
+      await supabase.from("rooms").delete().eq("apartment_id", iniziale.id);
+      await supabase.from("housemates").delete().eq("apartment_id", iniziale.id).is("profile_id", null);
+    } else {
+      const { data: apt, error } = await supabase
+        .from("apartments")
+        .insert({ ...datiCasa, host_id: user.id, attivo: true })
+        .select("id")
+        .single();
+      if (error || !apt) { setInvio(false); return err("Errore nella pubblicazione: " + (error?.message ?? "")); }
+      aptId = apt.id as string;
+    }
+
+    if (aptId && libere > 0) {
       await supabase.from("rooms").insert(
         Array.from({ length: libere }, () => ({
-          apartment_id: apt.id, tipo, prezzo_mensile: prezzo,
+          apartment_id: aptId, tipo, prezzo_mensile: prezzo,
           spese_incluse: speseIncl, spese_stimate: speseIncl ? null : speseStim,
           disponibile_dal: dal, permanenza_minima_mesi: permanenza, stato: "libera",
         })),
       );
     }
-    if (coinq.length) {
+    if (aptId && coinq.length) {
       await supabase.from("housemates").insert(
-        coinq.map((c) => ({ apartment_id: apt.id, nome_visualizzato: null, genere: c.genere, eta: c.eta ? Number(c.eta) : null, corso: c.corso || null, abitudini: c.abitudini })),
+        coinq.map((c) => ({ apartment_id: aptId, nome_visualizzato: null, genere: c.genere, eta: c.eta ? Number(c.eta) : null, corso: c.corso || null, abitudini: c.abitudini })),
       );
     }
-    if (invitati.length) {
+    if (aptId && invitati.length) {
       const nonTrovate: string[] = [];
       for (const em of invitati) {
-        const { data: res } = await supabase.rpc("invita_coinquilino", { p_apartment: apt.id, p_email: em });
+        const { data: res } = await supabase.rpc("invita_coinquilino", { p_apartment: aptId, p_email: em });
         if (res && res !== "ok" && res !== "gia_presente") nonTrovate.push(em);
       }
       if (nonTrovate.length) {
-        alert("Annuncio pubblicato. Questi non risultano iscritti a SLEPBOLO e non sono stati aggiunti:\n" + nonTrovate.join("\n"));
+        alert("Salvato. Questi non risultano iscritti a SLEPBOLO e non sono stati aggiunti:\n" + nonTrovate.join("\n"));
       }
     }
 
@@ -126,9 +141,11 @@ export function ProponiForm() {
   if (fatto) {
     return (
       <div className="border-2 border-verde bg-verde/[0.08] p-8 text-center">
-        <div className="text-[22px] font-black text-verde">Annuncio pubblicato!</div>
+        <div className="text-[22px] font-black text-verde">{modifica ? "Annuncio aggiornato!" : "Annuncio pubblicato!"}</div>
         <p className="mx-auto mt-2 max-w-[44ch] text-[15px] text-inchiostro/80">
-          È già online: da ora chi cerca casa può trovarlo e contattarti. Grazie: così aiuti altri studenti a trovare casa.
+          {modifica
+            ? "Le modifiche sono online. Chi cerca casa vede subito la versione aggiornata."
+            : "È già online: da ora chi cerca casa può trovarlo e contattarti. Grazie: così aiuti altri studenti a trovare casa."}
         </p>
         <Button asChild className="mt-5"><a href="/app">Torna all&apos;app</a></Button>
       </div>
@@ -219,9 +236,16 @@ export function ProponiForm() {
           <Field label="Età"><input className={inputClass} value={etaC} onChange={(e) => setEtaC(e.target.value)} inputMode="numeric" placeholder="Es. 23" /></Field>
           <Field label="Corso" wide><input className={inputClass} value={corsoC} onChange={(e) => setCorsoC(e.target.value)} placeholder="Es. Ingegneria" /></Field>
           <Field label="Stile di vita" wide>
-            <div className="flex flex-wrap gap-1.5">
-              {ABITUDINI.map((a) => (
-                <ChipToggle key={a} attivo={abitC.includes(a)} onClick={() => setAbitC((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a])}>{a}</ChipToggle>
+            <div className="flex flex-col gap-3">
+              {ABIT_CATEGORIE.map((cat) => (
+                <div key={cat.titolo}>
+                  <div className="mb-1.5 text-[11px] font-extrabold uppercase tracking-wide text-grigio">{cat.titolo}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {cat.voci.map((a) => (
+                      <ChipToggle key={a} attivo={abitC.includes(a)} onClick={() => setAbitC((p) => p.includes(a) ? p.filter((x) => x !== a) : [...p, a])}>{a}</ChipToggle>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </Field>
@@ -246,8 +270,8 @@ export function ProponiForm() {
       <div className="flex flex-wrap gap-1.5">{SERVIZI.map((s) => <ChipToggle key={s} attivo={servizi.includes(s)} onClick={() => setServizi((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s])}>{s}</ChipToggle>)}</div>
 
       <div className="border-t-2 border-inchiostro pt-5 text-right">
-        <Button onClick={invia} disabled={invio} size="lg">{invio ? "Pubblico…" : "Pubblica annuncio"}</Button>
-        <p className="mt-2 text-[12.5px] text-grigio">{libere} {libere === 1 ? "camera libera" : "camere libere"} · sarà subito online.</p>
+        <Button onClick={invia} disabled={invio} size="lg">{invio ? (modifica ? "Salvo…" : "Pubblico…") : modifica ? "Salva modifiche" : "Pubblica annuncio"}</Button>
+        <p className="mt-2 text-[12.5px] text-grigio">{libere} {libere === 1 ? "camera libera" : "camere libere"} · {modifica ? "le modifiche saranno subito online." : "sarà subito online."}</p>
       </div>
     </div>
   );

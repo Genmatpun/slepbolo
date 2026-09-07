@@ -50,9 +50,10 @@ export default async function InvitiPage() {
   return (
     <div className="mx-auto max-w-[720px] px-5 pb-20 pt-8 sm:px-6">
       <h1 className="text-[28px]">Inviti come coinquilino</h1>
-      <p className="mt-1 max-w-[52ch] text-sm text-grigio">
-        Qualcuno ti ha aggiunto come coinquilino di una casa. Accetta per confermare (i dati mostrati
-        vengono dal tuo profilo), oppure rifiuta per essere rimosso. Gli inviti non accettati entro 24 ore spariscono da soli.
+      <p className="mt-1 max-w-[56ch] text-sm text-grigio">
+        Un tuo coinquilino ti ha aggiunto all&apos;annuncio della <b>vostra casa</b> (state cercando un&apos;altra
+        persona). Conferma che ne fai parte: comparirai nell&apos;annuncio <b>senza nome</b>, con i dati del tuo
+        profilo. Non è una proposta di trasferirti altrove. Le richieste non confermate entro 24 ore spariscono da sole.
       </p>
       <InvitiLista inviti={inviti} />
     </div>

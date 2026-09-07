@@ -76,10 +76,10 @@ export function InvitiLista({ inviti }: { inviti: Invito[] }) {
 
             <div className="mt-4 flex gap-2">
               <Button size="sm" disabled={busy === i.id} onClick={() => rispondi(i.id, true)}>
-                {busy === i.id ? "…" : "Accetta"}
+                {busy === i.id ? "…" : "Sì, abito qui"}
               </Button>
               <Button size="sm" variant="ghost" disabled={busy === i.id} onClick={() => rispondi(i.id, false)}>
-                Rifiuta
+                No
               </Button>
             </div>
           </div>

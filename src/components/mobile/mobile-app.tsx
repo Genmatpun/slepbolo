@@ -397,20 +397,29 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                           .slice(0, 3) as { testo: string; hot?: boolean }[];
                         return (
                           <div key={a.id} style={css(wrap)}>
-                            <div
-                              onClick={i === 0 && a.foto.length > 1 ? () => setScopriFoto((p) => (p + 1) % a.foto.length) : undefined}
-                              style={css(`position:relative;height:210px;flex:none;display:grid;place-items:center;background:${coverN(a, i === 0 ? scopriFoto % Math.max(1, a.foto.length) : 0)};${i === 0 && a.foto.length > 1 ? "cursor:pointer" : ""}`)}
-                            >
+                            <div style={css(`position:relative;height:210px;flex:none;display:grid;place-items:center;background:${coverN(a, i === 0 ? scopriFoto % Math.max(1, a.foto.length) : 0)}`)}>
                               <span style={css("position:absolute;left:14px;top:14px;background:#faf3e7;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase")}>
                                 {a.zona}
                               </span>
                               {!a.foto.length && <span style={css("font-size:74px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.22)")}>{glyph(a)}</span>}
-                              {a.foto.length > 1 && (
+                              {i === 0 && a.foto.length > 1 && (
                                 <>
-                                  <span style={css("position:absolute;right:14px;top:14px;background:rgba(27,24,21,.75);color:#faf3e7;padding:4px 9px;font-size:12px;font-weight:800")}>{(i === 0 ? scopriFoto % a.foto.length : 0) + 1}/{a.foto.length}</span>
+                                  <button
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => { e.stopPropagation(); setScopriFoto((p) => (p - 1 + a.foto.length) % a.foto.length); }}
+                                    style={css("position:absolute;left:10px;top:50%;transform:translateY(-50%);width:42px;height:42px;border:0;background:rgba(27,24,21,.72);color:#faf3e7;font-size:24px;font-weight:900;cursor:pointer;display:grid;place-items:center")}
+                                    aria-label="Foto precedente"
+                                  >‹</button>
+                                  <button
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => { e.stopPropagation(); setScopriFoto((p) => (p + 1) % a.foto.length); }}
+                                    style={css("position:absolute;right:10px;top:50%;transform:translateY(-50%);width:42px;height:42px;border:0;background:rgba(27,24,21,.72);color:#faf3e7;font-size:24px;font-weight:900;cursor:pointer;display:grid;place-items:center")}
+                                    aria-label="Foto successiva"
+                                  >›</button>
+                                  <span style={css("position:absolute;right:14px;top:14px;background:rgba(27,24,21,.75);color:#faf3e7;padding:4px 9px;font-size:12px;font-weight:800")}>{(scopriFoto % a.foto.length) + 1}/{a.foto.length}</span>
                                   <div style={css("position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;gap:6px")}>
                                     {a.foto.map((_, k) => (
-                                      <span key={k} style={css(`width:7px;height:7px;border-radius:99px;background:${k === (i === 0 ? scopriFoto % a.foto.length : 0) ? "#faf3e7" : "rgba(250,243,231,.45)"}`)} />
+                                      <span key={k} style={css(`width:7px;height:7px;border-radius:99px;background:${k === scopriFoto % a.foto.length ? "#faf3e7" : "rgba(250,243,231,.45)"}`)} />
                                     ))}
                                   </div>
                                 </>

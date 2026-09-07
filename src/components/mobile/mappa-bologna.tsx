@@ -12,6 +12,18 @@ const SEDI = [
   { nome: "Agraria", lat: 44.4995, lng: 11.352 },
 ];
 
+/** Anello (poligono) di un cerchio di raggio rM metri attorno a un punto. */
+function anelloCerchio(lng: number, lat: number, rM: number, n = 40): [number, number][] {
+  const coords: [number, number][] = [];
+  const dLat = rM / 111320;
+  const dLng = rM / (111320 * Math.cos((lat * Math.PI) / 180));
+  for (let i = 0; i <= n; i++) {
+    const t = (i / n) * 2 * Math.PI;
+    coords.push([lng + dLng * Math.cos(t), lat + dLat * Math.sin(t)]);
+  }
+  return coords;
+}
+
 const STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
@@ -69,6 +81,30 @@ export function MappaBologna({
     if (!map) return;
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
+
+    // Aree approssimative (cerchio ~150 m sulla via) — posizione non esatta per privacy
+    const fc: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: annunci
+        .filter((a) => a.lat && a.lng)
+        .map((a) => ({
+          type: "Feature",
+          properties: { id: a.id },
+          geometry: { type: "Polygon", coordinates: [anelloCerchio(a.lng as number, a.lat as number, 150)] },
+        })),
+    };
+    const applyAree = () => {
+      const src = map.getSource("aree") as maplibregl.GeoJSONSource | undefined;
+      if (src) {
+        src.setData(fc);
+      } else {
+        map.addSource("aree", { type: "geojson", data: fc });
+        map.addLayer({ id: "aree-fill", type: "fill", source: "aree", paint: { "fill-color": "#a2001d", "fill-opacity": 0.12 } });
+        map.addLayer({ id: "aree-line", type: "line", source: "aree", paint: { "line-color": "#a2001d", "line-width": 1.5, "line-opacity": 0.4 } });
+      }
+    };
+    if (map.isStyleLoaded()) applyAree();
+    else map.once("load", applyAree);
 
     for (const s of SEDI) {
       const el = document.createElement("div");

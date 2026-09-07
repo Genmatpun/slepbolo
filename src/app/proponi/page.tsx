@@ -25,14 +25,18 @@ export default async function ProponiPage({
     loggato = !!user;
 
     if (user && modifica) {
-      // Solo la propria casa (la RLS consente all'host di leggere anche gli annunci nascosti).
+      // Può modificare l'host oppure un coinquilino confermato della casa.
       const { data } = await supabase
         .from("apartments")
         .select("*, rooms(*), housemates(*)")
         .eq("id", modifica)
-        .eq("host_id", user.id)
         .single();
-      if (data) iniziale = data as Annuncio;
+      if (data) {
+        const isHost = data.host_id === user.id;
+        const isMembro = ((data.housemates ?? []) as { profile_id: string | null; stato: string }[])
+          .some((h) => h.profile_id === user.id && h.stato === "confermato");
+        if (isHost || isMembro) iniziale = data as Annuncio;
+      }
     }
   }
 

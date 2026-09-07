@@ -68,7 +68,7 @@ export default async function AppPage() {
         whatsapp: a.contatto_whatsapp ?? null,
         email: a.contatto_email ?? null,
         contattoNote: a.contatto_note ?? null,
-        foto: a.foto_urls?.[0] ?? null,
+        foto: a.foto_urls ?? [],
         _lib: camereLibere(a),
       };
     })

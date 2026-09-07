@@ -46,7 +46,7 @@ export interface MobileAnnuncio {
   whatsapp: string | null;
   email: string | null;
   contattoNote: string | null;
-  foto: string | null;
+  foto: string[];
 }
 
 const SEDI = [
@@ -83,7 +83,8 @@ function hash(id: string): number {
   return n;
 }
 const grad = (id: string) => GRAD[(hash(id) * 7) % GRAD.length];
-const coverBg = (a: MobileAnnuncio) => (a.foto ? `#000 url('${a.foto}') center/cover no-repeat` : grad(a.id));
+const coverBg = (a: MobileAnnuncio) => (a.foto[0] ? `#000 url('${a.foto[0]}') center/cover no-repeat` : grad(a.id));
+const coverN = (a: MobileAnnuncio, n: number) => (a.foto[n] ? `#000 url('${a.foto[n]}') center/cover no-repeat` : grad(a.id));
 const glyph = (a: MobileAnnuncio) => a.zona.slice(0, 3).toUpperCase();
 const libere = (a: MobileAnnuncio) => a.tot - a.occ;
 const labelCamere = (n: number) => (n === 1 ? "1 camera libera" : `${n} camere libere`);
@@ -119,6 +120,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   const [user, setUser] = useState<Utente | null | undefined>(undefined);
   const [tab, setTab] = useState("scopri");
   const [idx, setIdx] = useState(0);
+  const [scopriFoto, setScopriFoto] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [saved, setSaved] = useState<string[]>([]);
@@ -181,6 +183,9 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   useEffect(() => {
     if (chiaveSalvati) localStorage.setItem(chiaveSalvati, JSON.stringify(saved));
   }, [saved, chiaveSalvati]);
+
+  // Riparte dalla prima foto quando cambia la card in Scopri
+  useEffect(() => { setScopriFoto(0); }, [idx]);
 
   async function logout() {
     if (supabaseConfigurato()) await createClient().auth.signOut();
@@ -269,7 +274,7 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
           `width:64px;height:64px;flex:none;display:grid;place-items:center;background:${coverBg(a)};color:rgba(255,255,255,.35);font-size:19px;font-weight:900;letter-spacing:-.05em`,
         )}
       >
-        {a.foto ? "" : glyph(a)}
+        {a.foto.length ? "" : glyph(a)}
       </div>
       <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
         <div style={css("display:flex;align-items:baseline;gap:8px")}>
@@ -392,11 +397,24 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                           .slice(0, 3) as { testo: string; hot?: boolean }[];
                         return (
                           <div key={a.id} style={css(wrap)}>
-                            <div style={css(`position:relative;height:170px;flex:none;display:grid;place-items:center;background:${coverBg(a)}`)}>
+                            <div
+                              onClick={i === 0 && a.foto.length > 1 ? () => setScopriFoto((p) => (p + 1) % a.foto.length) : undefined}
+                              style={css(`position:relative;height:210px;flex:none;display:grid;place-items:center;background:${coverN(a, i === 0 ? scopriFoto % Math.max(1, a.foto.length) : 0)};${i === 0 && a.foto.length > 1 ? "cursor:pointer" : ""}`)}
+                            >
                               <span style={css("position:absolute;left:14px;top:14px;background:#faf3e7;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase")}>
                                 {a.zona}
                               </span>
-                              {!a.foto && <span style={css("font-size:74px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.22)")}>{glyph(a)}</span>}
+                              {!a.foto.length && <span style={css("font-size:74px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.22)")}>{glyph(a)}</span>}
+                              {a.foto.length > 1 && (
+                                <>
+                                  <span style={css("position:absolute;right:14px;top:14px;background:rgba(27,24,21,.75);color:#faf3e7;padding:4px 9px;font-size:12px;font-weight:800")}>{(i === 0 ? scopriFoto % a.foto.length : 0) + 1}/{a.foto.length}</span>
+                                  <div style={css("position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;gap:6px")}>
+                                    {a.foto.map((_, k) => (
+                                      <span key={k} style={css(`width:7px;height:7px;border-radius:99px;background:${k === (i === 0 ? scopriFoto % a.foto.length : 0) ? "#faf3e7" : "rgba(250,243,231,.45)"}`)} />
+                                    ))}
+                                  </div>
+                                </>
+                              )}
                               <span style={css("position:absolute;right:14px;bottom:14px;background:#1b1815;color:#faf3e7;padding:7px 12px;font-size:19px;font-weight:900;letter-spacing:-.03em")}>
                                 {a.prezzo} €<span style={css("font-size:11px;font-weight:600")}>/mese</span>
                               </span>
@@ -621,8 +639,18 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
         {det && (
           <div style={css("position:absolute;inset:0;background:#faf3e7;z-index:70;display:flex;flex-direction:column;animation:sbSlide .34s cubic-bezier(.22,.9,.3,1) both")}>
             <div className="sb-noscroll" style={css("flex:1;overflow:auto")}>
-              <div style={css(`position:relative;height:270px;display:grid;place-items:center;background:${coverBg(det)}`)}>
-                {!det.foto && <span style={css("font-size:96px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.2)")}>{glyph(det)}</span>}
+              <div style={css("position:relative;height:270px")}>
+                {det.foto.length ? (
+                  <div className="sb-noscroll" style={css("display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory")}>
+                    {det.foto.map((u, k) => (
+                      <div key={k} style={css(`flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;background:#000 url('${u}') center/cover no-repeat`)} />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={css(`height:100%;display:grid;place-items:center;background:${grad(det.id)}`)}>
+                    <span style={css("font-size:96px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.2)")}>{glyph(det)}</span>
+                  </div>
+                )}
                 <button onClick={() => setDetail(null)} style={css("position:absolute;left:18px;top:58px;width:40px;height:40px;border:0;background:#faf3e7;color:#1b1815;font-size:18px;font-weight:800;cursor:pointer")}>
                   ←
                 </button>
@@ -634,6 +662,9 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
                 >
                   {saved.includes(det.id) ? "✓ Salvata" : "Salva"}
                 </button>
+                {det.foto.length > 1 && (
+                  <span style={css("position:absolute;right:18px;bottom:16px;background:rgba(27,24,21,.75);color:#faf3e7;padding:5px 10px;font-size:12px;font-weight:800")}>📷 {det.foto.length} · scorri →</span>
+                )}
                 <span style={css("position:absolute;left:18px;bottom:16px;background:#faf3e7;padding:6px 11px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase")}>
                   {det.zona} · {det.via}
                 </span>
@@ -902,32 +933,45 @@ function ProfiloTab({
   const [caricamentoFoto, setCaricamentoFoto] = useState(false);
   const [salvato, setSalvato] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [mieCase, setMieCase] = useState<{ id: string; titolo: string; zona: string; prezzo: number; attivo: boolean }[]>([]);
+  const [mieCase, setMieCase] = useState<{ id: string; titolo: string; zona: string; prezzo: number; attivo: boolean; sonoHost: boolean }[]>([]);
   const [inviti, setInviti] = useState<{ id: string; titolo: string; zona: string; genere: string; eta: number | null; corso: string; abitudini: string[]; scadenza: string }[]>([]);
   const [rispondendo, setRispondendo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabaseConfigurato()) return;
     const supabase = createClient();
-    supabase
-      .from("apartments")
-      .select("id, titolo, zona, attivo, rooms(prezzo_mensile, stato)")
-      .eq("host_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (!data) return;
-        setMieCase(
-          data.map((a) => {
-            const libere = (a.rooms as { prezzo_mensile: number; stato: string }[] | null)?.filter((r) => r.stato === "libera") ?? [];
-            return { id: a.id as string, titolo: a.titolo as string, zona: a.zona as string, attivo: a.attivo as boolean, prezzo: libere.length ? Math.min(...libere.map((r) => r.prezzo_mensile)) : 0 };
-          }),
-        );
+    type ApRow = { id: string; titolo: string; zona: string; attivo: boolean; rooms: { prezzo_mensile: number; stato: string }[] | null };
+    const shape = (a: ApRow, sonoHost: boolean) => {
+      const libere = (a.rooms ?? []).filter((r) => r.stato === "libera");
+      return { id: a.id, titolo: a.titolo, zona: a.zona, attivo: a.attivo, sonoHost, prezzo: libere.length ? Math.min(...libere.map((r) => r.prezzo_mensile)) : 0 };
+    };
+    (async () => {
+      const { data: host } = await supabase
+        .from("apartments").select("id, titolo, zona, attivo, rooms(prezzo_mensile, stato)")
+        .eq("host_id", user.id).order("created_at", { ascending: false });
+      const { data: membro } = await supabase
+        .from("housemates").select("apartments(id, titolo, zona, attivo, rooms(prezzo_mensile, stato))")
+        .eq("profile_id", user.id).eq("stato", "confermato");
+      const map = new Map<string, ReturnType<typeof shape>>();
+      (host ?? []).forEach((a) => map.set(a.id as string, shape(a as unknown as ApRow, true)));
+      (membro ?? []).forEach((h) => {
+        const ap = (h as unknown as { apartments: ApRow | ApRow[] | null }).apartments;
+        const a = Array.isArray(ap) ? ap[0] : ap;
+        if (a && !map.has(a.id)) map.set(a.id, shape(a, false));
       });
+      setMieCase([...map.values()]);
+    })();
   }, [user.id]);
 
   async function eliminaCasa(id: string) {
     if (!confirm("Eliminare questo annuncio? L'operazione è definitiva.")) return;
     await createClient().from("apartments").delete().eq("id", id);
+    setMieCase((c) => c.filter((x) => x.id !== id));
+  }
+
+  async function esciDaCasa(id: string) {
+    if (!confirm("Uscire da questa casa? Non comparirai più tra i coinquilini dell'annuncio.")) return;
+    await createClient().from("housemates").delete().eq("apartment_id", id).eq("profile_id", user.id);
     setMieCase((c) => c.filter((x) => x.id !== id));
   }
 
@@ -1128,10 +1172,14 @@ function ProfiloTab({
               <div key={c.id} style={css("display:flex;align-items:center;gap:10px;border:2px solid #e5dccb;padding:10px 12px")}>
                 <div style={css("min-width:0;flex:1")}>
                   <div style={css("font-size:14px;font-weight:800;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.titolo}</div>
-                  <div style={css("font-size:12px;color:#736b62;font-weight:600")}>{c.zona} · {c.prezzo} €{c.attivo ? "" : " · nascosto"}</div>
+                  <div style={css("font-size:12px;color:#736b62;font-weight:600")}>{c.zona} · {c.prezzo} €{c.attivo ? "" : " · nascosto"}{c.sonoHost ? "" : " · coinquilino"}</div>
                 </div>
                 <a href={`/proponi?modifica=${c.id}`} style={css("flex:none;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;text-decoration:none")}>Modifica</a>
-                <button onClick={() => eliminaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Elimina</button>
+                {c.sonoHost ? (
+                  <button onClick={() => eliminaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Elimina</button>
+                ) : (
+                  <button onClick={() => esciDaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Esci</button>
+                )}
               </div>
             ))}
           </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
-import { ZONE_BOLOGNA, SEDI_UNIBO, personaCoinquilino, ABIT_CATEGORIE } from "@/lib/constants";
+import { ZONE_BOLOGNA, SEDI_UNIBO, personaCoinquilino, ABIT_CATEGORIE, GENERI_COINQUILINO } from "@/lib/constants";
 import { MappaBologna } from "./mappa-bologna";
 
 /** Riepilogo privacy-safe dei coinquilini: "2 ragazze · 1 ragazzo". */
@@ -892,6 +892,7 @@ function ProfiloTab({
   const [cognome, setCognome] = useState(user.cognome);
   const [eta, setEta] = useState("");
   const [corso, setCorso] = useState("");
+  const [genereU, setGenereU] = useState<string>("");
   const [sede, setSede] = useState("");
   const [zona, setZona] = useState("");
   const [budget, setBudget] = useState("");
@@ -972,7 +973,7 @@ function ProfiloTab({
     const supabase = createClient();
     supabase
       .from("profiles")
-      .select("nome, cognome, eta, corso_laurea, sede_principale, zona_preferita, budget_max, abitudini, foto_url, bio")
+      .select("nome, cognome, eta, corso_laurea, sede_principale, zona_preferita, budget_max, abitudini, foto_url, bio, genere")
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
@@ -981,6 +982,7 @@ function ProfiloTab({
         setCognome(data.cognome ?? "");
         setEta(data.eta != null ? String(data.eta) : "");
         setCorso(data.corso_laurea ?? "");
+        setGenereU((data.genere as string) ?? "");
         setSede(data.sede_principale ?? "");
         setZona(data.zona_preferita ?? "");
         setBudget(data.budget_max != null ? String(data.budget_max) : "");
@@ -1013,6 +1015,7 @@ function ProfiloTab({
       .update({
         nome, cognome,
         eta: eta ? Number(eta) : null,
+        genere: genereU || null,
         corso_laurea: corso || null,
         sede_principale: sede || null,
         zona_preferita: zona || null,
@@ -1145,6 +1148,15 @@ function ProfiloTab({
         <div style={css("display:flex;gap:10px")}>
           <input style={css(inCampo + ";flex:0 0 90px")} placeholder="Età" inputMode="numeric" value={eta} onChange={(e) => setEta(e.target.value)} />
           <input style={css(inCampo + ";flex:1")} placeholder="Corso di laurea" value={corso} onChange={(e) => setCorso(e.target.value)} />
+        </div>
+        <LabelP testo="Sei…" />
+        <div style={css("display:flex;gap:8px")}>
+          {GENERI_COINQUILINO.map((g) => {
+            const on = genereU === g.value;
+            return (
+              <button key={g.value} onClick={() => setGenereU(g.value)} style={css(`flex:1;border:2px solid ${on ? "#a2001d" : "#e5dccb"};background:${on ? "rgba(162,0,29,.08)" : "transparent"};color:${on ? "#a2001d" : "#736b62"};padding:12px;font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer`)}>{g.label}</button>
+            );
+          })}
         </div>
         <LabelP testo="Sede principale" />
         <select style={css(inCampo)} value={sede} onChange={(e) => setSede(e.target.value)}>

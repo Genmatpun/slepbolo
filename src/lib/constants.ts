@@ -79,10 +79,10 @@ export const ABITUDINI = [
 
 /** Preferenze di stile di vita a categorie — usate nel profilo e nel modulo coinquilini. */
 export const ABIT_CATEGORIE: { titolo: string; voci: string[] }[] = [
-  { titolo: "Fumo", voci: ["Non fumo", "Fumo", "Fumo solo fuori"] },
-  { titolo: "Ritmi", voci: ["Mattiniero/a", "Nottambulo/a", "Rientro tardi", "Weekend fuori"] },
-  { titolo: "In casa", voci: ["Ordinato/a", "Cucino spesso", "Studio a casa", "Silenzioso/a", "Socievole", "Ospiti ok"] },
-  { titolo: "Animali", voci: ["Ho un animale", "Ok agli animali", "No animali"] },
+  { titolo: "Fumo", voci: ["Non fumo", "Fumo"] },
+  { titolo: "Ritmi", voci: ["Mattiniero/a", "Sempre fuori", "Rientro tardi", "Weekend fuori"] },
+  { titolo: "In casa", voci: ["Ordinato/a", "Cucino spesso", "Studio a casa", "Silenzioso/a", "Socievole", "Spesso ospiti"] },
+  { titolo: "Animali", voci: ["Ho un animale", "Non ho animali"] },
   { titolo: "Altro", voci: ["Sportivo/a", "Vegetariano/a", "Vegano/a", "Musica alta", "Niente feste"] },
 ];
 

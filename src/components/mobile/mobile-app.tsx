@@ -1083,7 +1083,7 @@ function ProfiloTab({
         </div>
         {inviti.length === 0 ? (
           <div style={css("padding:16px;font-size:13px;color:#736b62;line-height:1.45")}>
-            Nessuna richiesta al momento. Se <b>abiti già in un appartamento</b> e un tuo coinquilino pubblica l&apos;annuncio per cercare un&apos;altra persona, può aggiungerti: qui <b>confermi che fai parte di quella casa</b> (hai 24h). Non è una proposta di trasloco.
+            Se <b>fai già parte di una casa</b> e state cercando un nuovo coinquilino, puoi farti aggiungere all&apos;elenco di chi ci abita già: la richiesta arriva qui e la <b>accetti entro 24h</b>. Per ora nessun invito.
           </div>
         ) : (
           inviti.map((inv) => {

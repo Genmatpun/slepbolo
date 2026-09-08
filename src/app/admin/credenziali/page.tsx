@@ -1,4 +1,5 @@
 import { esci } from "./actions";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { CredenzialiLogin } from "@/components/admin/credenziali-login";
 import { CredenzialiLista } from "@/components/admin/credenziali-lista";
 import { adminConfigurato, sessioneValida } from "@/lib/credenziali/sessione";
@@ -75,6 +76,9 @@ function Guscio({ children }: { children: React.ReactNode }) {
       <div className="eyebrow">SLEPBOLO · Admin</div>
       <h1 className="mt-2 text-[32px]">Credenziali iscritti</h1>
       <div className="mt-2 mb-8 h-[2px] w-full bg-inchiostro" />
+      {/* Sempre presente, anche sulla schermata della password: senza queste
+          voci da qui non si torna piu' agli annunci e agli utenti. */}
+      <AdminNav />
       {children}
     </div>
   );

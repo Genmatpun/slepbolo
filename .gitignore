@@ -6,3 +6,8 @@
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+# Tooling degli agenti: non fa parte dell'app, non deve finire nel repo
+.agents/
+.claude/
+skills-lock.json

@@ -13,7 +13,8 @@ const VOCI = [
 export function AdminNav() {
   const path = usePathname();
   return (
-    <nav className="mb-6 flex gap-2">
+    // flex-wrap: a 375px le tre voci in fila sforano il bordo dello schermo.
+    <nav className="mb-6 flex flex-wrap gap-2">
       {VOCI.map((v) => {
         const on = v.href === "/admin" ? path === "/admin" : path.startsWith(v.href);
         return (

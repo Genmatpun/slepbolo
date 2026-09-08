@@ -6,6 +6,21 @@ import { createServerClient } from "@supabase/ssr";
  * Se Supabase non è configurato, passa oltre senza fare nulla.
  */
 export async function middleware(request: NextRequest) {
+  /**
+   * La pagina credenziali ha una serratura sua (ADMIN_PASSWORD) e non usa la
+   * sessione Supabase. Aprirla con una GET cancella sempre l'accesso
+   * precedente: la password va rimessa a ogni visita, niente login ricordato.
+   * Solo sulle GET, altrimenti spazzeremmo via il cookie che il login stesso
+   * sta impostando.
+   */
+  if (request.nextUrl.pathname === "/admin/credenziali") {
+    const risposta = NextResponse.next({ request });
+    if (request.method === "GET") {
+      risposta.cookies.delete({ name: "slepbolo_admin", path: "/admin" });
+    }
+    return risposta;
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next();

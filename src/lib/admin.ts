@@ -28,9 +28,13 @@ export async function getAdminUser(): Promise<AdminUser | null> {
   if (!user?.email) return null;
 
   const allow = emailAdmin();
-  // Se non è configurato nessun admin, autorizza qualsiasi utente loggato
-  // (utile in sviluppo). In produzione imposta ADMIN_EMAILS.
-  if (allow.length > 0 && !allow.includes(user.email.toLowerCase())) return null;
+  // Nessun admin configurato = nessun accesso, mai.
+  // Prima qui si autorizzava qualsiasi utente loggato "per comodità in
+  // sviluppo": ma è la stessa riga che gira in produzione, e bastava
+  // dimenticare ADMIN_EMAILS per aprire l'admin a chiunque si registrasse,
+  // in silenzio. Meglio restare chiusi fuori e accorgersene subito.
+  if (allow.length === 0) return null;
+  if (!allow.includes(user.email.toLowerCase())) return null;
 
   return { id: user.id, email: user.email };
 }

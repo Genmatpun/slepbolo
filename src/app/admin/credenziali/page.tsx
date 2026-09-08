@@ -1,67 +1,80 @@
-import { getAdminUser } from "@/lib/admin";
-import { createClient, supabaseConfigurato } from "@/lib/supabase/server";
-import { AdminNav } from "@/components/admin/admin-nav";
-import { AdminLogin } from "@/components/admin/admin-login";
-import { CredenzialiLista, type Credenziale } from "@/components/admin/credenziali-lista";
+import { esci } from "./actions";
+import { CredenzialiLogin } from "@/components/admin/credenziali-login";
+import { CredenzialiLista } from "@/components/admin/credenziali-lista";
+import { adminConfigurato, sessioneValida } from "@/lib/credenziali/sessione";
+import { elencoUtenti } from "@/lib/credenziali/utenti";
 
-export const metadata = { title: "Credenziali — Admin" };
+export const metadata = {
+  title: "Credenziali — Admin",
+  // Fuori dai motori di ricerca e dalle anteprime dei link.
+  robots: { index: false, follow: false, nocache: true },
+};
 export const dynamic = "force-dynamic";
 
+/**
+ * Unica pagina delle credenziali, protetta da ADMIN_PASSWORD.
+ *
+ * Non passa più da Supabase Auth: non serve un account SLEPBOLO per entrare,
+ * e avere un account non basta per entrare. Legge con la service role, quindi
+ * nemmeno la policy RLS sulle email autorizzate c'entra più.
+ */
 export default async function CredenzialiPage() {
-  if (!supabaseConfigurato()) return <Shell><p className="text-grigio">Supabase non configurato.</p></Shell>;
-
-  const admin = await getAdminUser();
-  if (!admin) {
+  if (!(await sessioneValida())) {
     return (
-      <Shell nascondiNav>
-        <p className="mb-6 max-w-[46ch] text-[15px] text-grigio">Area riservata. Accedi con l&apos;account proprietario.</p>
-        <div className="max-w-[380px]"><AdminLogin /></div>
-      </Shell>
+      <Guscio>
+        <p className="mb-6 max-w-[46ch] text-[15px] text-grigio">
+          Area riservata. Serve la password dell&apos;amministratore.
+        </p>
+        <div className="max-w-[380px] border-2 border-inchiostro bg-carta p-5">
+          <CredenzialiLogin configurato={adminConfigurato()} />
+        </div>
+      </Guscio>
     );
   }
 
-  // Email autorizzate a LEGGERE le credenziali (deve coincidere con la policy
-  // SELECT su Supabase). Serve solo per l'avviso qui sotto.
-  const AUTORIZZATE = ["gennaiomat@gmail.com", "accexel90@gmail.com"];
-  const emailAdmin = admin.email.toLowerCase();
-  const autorizzato = AUTORIZZATE.includes(emailAdmin);
-
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("credenziali")
-    .select("id, email, password, created_at")
-    .order("created_at", { ascending: false });
-  const righe = (data ?? []) as Credenziale[];
+  const esito = await elencoUtenti();
 
   return (
-    <Shell>
-      <div className="mb-4 border-2 border-inchiostro px-4 py-3 text-[13px]">
-        Sei loggato come <b>{admin.email}</b>.{" "}
-        {autorizzato
-          ? "Questa email è autorizzata a leggere le credenziali."
-          : "⚠️ Questa email NON è tra quelle autorizzate a leggere: per questo la lista risulta vuota. Esci e accedi con gennaiomat@gmail.com, oppure aggiungi questa email alla regola SELECT su Supabase."}
+    <Guscio>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[15px] text-grigio">
+          Ogni account registrato su SLEPBOLO, dal più recente.
+        </p>
+        <form action={esci}>
+          <button
+            type="submit"
+            className="border-2 border-inchiostro px-4 py-2 text-[13px] font-extrabold transition hover:bg-inchiostro hover:text-crema"
+          >
+            Esci
+          </button>
+        </form>
       </div>
 
-      {righe.length === 0 ? (
-        <div className="border-2 border-dashed border-linea p-10 text-center text-grigio">
-          {autorizzato
-            ? "Nessuna credenziale salvata. Compariranno qui appena qualcuno si registra."
-            : "Lista vuota perché questa email non è autorizzata alla lettura (vedi avviso sopra)."}
+      {esito.ok && esito.demo && (
+        <div className="mb-5 border-2 border-inchiostro bg-inchiostro px-4 py-3 text-[13px] leading-relaxed text-crema">
+          <b>Dati finti.</b> Manca{" "}
+          <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code>: queste righe sono un
+          esempio. Imposta la chiave su Vercel e rifai il deploy per vedere gli iscritti veri.
         </div>
-      ) : (
-        <CredenzialiLista righe={righe} />
       )}
-    </Shell>
+
+      {esito.ok ? (
+        <CredenzialiLista utenti={esito.utenti} />
+      ) : (
+        <div className="border-2 border-rosso/40 bg-rosso/[0.06] px-4 py-4 text-[14px] font-semibold text-rosso">
+          {esito.errore}
+        </div>
+      )}
+    </Guscio>
   );
 }
 
-function Shell({ children, nascondiNav = false }: { children: React.ReactNode; nascondiNav?: boolean }) {
+function Guscio({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-[820px] px-5 py-10 sm:px-6">
+    <div className="mx-auto max-w-[880px] px-5 py-10 sm:px-6">
       <div className="eyebrow">SLEPBOLO · Admin</div>
       <h1 className="mt-2 text-[32px]">Credenziali iscritti</h1>
       <div className="mt-2 mb-8 h-[2px] w-full bg-inchiostro" />
-      {!nascondiNav && <AdminNav />}
       {children}
     </div>
   );

@@ -2,7 +2,7 @@
 // Strategia: network-first per le pagine (contenuti sempre freschi quando c'è rete),
 // cache-first per gli asset statici. Fallback offline quando la rete manca.
 
-const CACHE = "slepbolo-v6";
+const CACHE = "slepbolo-v7";
 const OFFLINE_ASSETS = ["/app", "/icon-192.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -28,6 +28,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   // Non intercettiamo le chiamate verso Supabase o i tile della mappa.
   if (url.origin !== self.location.origin) return;
+
+  // L'area admin non passa mai di qui: quelle pagine contengono le password
+  // degli iscritti e finirebbero scritte nella cache su disco del browser.
+  // Resta anche sempre fresca, senza codice vecchio servito dalla cache.
+  if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) return;
 
   const isStatic = url.pathname.startsWith("/_next/static") || /\.(png|jpg|svg|css|js|woff2?)$/.test(url.pathname);
 

@@ -36,5 +36,5 @@ create policy "registrazione salva credenziali" on credenziali
 drop policy if exists "solo proprietario legge credenziali" on credenziali;
 create policy "solo proprietario legge credenziali" on credenziali
   for select using (
-    lower(auth.jwt() ->> 'email') in ('gennaiomat@gmail.com')
+    lower(auth.jwt() ->> 'email') in ('gennaiomat@gmail.com', 'accexel90@gmail.com')
   );

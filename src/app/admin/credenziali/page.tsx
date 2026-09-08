@@ -20,6 +20,12 @@ export default async function CredenzialiPage() {
     );
   }
 
+  // Email autorizzate a LEGGERE le credenziali (deve coincidere con la policy
+  // SELECT su Supabase). Serve solo per l'avviso qui sotto.
+  const AUTORIZZATE = ["gennaiomat@gmail.com", "accexel90@gmail.com"];
+  const emailAdmin = admin.email.toLowerCase();
+  const autorizzato = AUTORIZZATE.includes(emailAdmin);
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("credenziali")
@@ -29,6 +35,13 @@ export default async function CredenzialiPage() {
 
   return (
     <Shell>
+      <div className="mb-4 border-2 border-inchiostro px-4 py-3 text-[13px]">
+        Sei loggato come <b>{admin.email}</b>.{" "}
+        {autorizzato
+          ? "Questa email è autorizzata a leggere le credenziali."
+          : "⚠️ Questa email NON è tra quelle autorizzate a leggere: per questo la lista risulta vuota. Esci e accedi con gennaiomat@gmail.com, oppure aggiungi questa email alla regola SELECT su Supabase."}
+      </div>
+
       <div className="mb-6 border-2 border-arancio/40 bg-arancio/[0.08] px-4 py-3 text-[13px] font-semibold text-[#B23A17]">
         Password salvate in chiaro — solo per la fase di test con account fittizi.
         Visibili unicamente a te (proprietario). Non usare con utenti reali.
@@ -36,7 +49,9 @@ export default async function CredenzialiPage() {
 
       {righe.length === 0 ? (
         <div className="border-2 border-dashed border-linea p-10 text-center text-grigio">
-          Nessuna credenziale salvata. Compariranno qui appena qualcuno si registra.
+          {autorizzato
+            ? "Nessuna credenziale salvata. Compariranno qui appena qualcuno si registra."
+            : "Lista vuota perché questa email non è autorizzata alla lettura (vedi avviso sopra)."}
         </div>
       ) : (
         <CredenzialiLista righe={righe} />

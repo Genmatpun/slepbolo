@@ -42,11 +42,6 @@ export default async function CredenzialiPage() {
           : "⚠️ Questa email NON è tra quelle autorizzate a leggere: per questo la lista risulta vuota. Esci e accedi con gennaiomat@gmail.com, oppure aggiungi questa email alla regola SELECT su Supabase."}
       </div>
 
-      <div className="mb-6 border-2 border-arancio/40 bg-arancio/[0.08] px-4 py-3 text-[13px] font-semibold text-[#B23A17]">
-        Password salvate in chiaro — solo per la fase di test con account fittizi.
-        Visibili unicamente a te (proprietario). Non usare con utenti reali.
-      </div>
-
       {righe.length === 0 ? (
         <div className="border-2 border-dashed border-linea p-10 text-center text-grigio">
           {autorizzato

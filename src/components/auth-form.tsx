@@ -69,6 +69,27 @@ export function AuthForm() {
     }
   }
 
+  /**
+   * Manda il link di reimpostazione alla mail scritta nel campo sopra.
+   * Il messaggio e' lo stesso che l'indirizzo esista o no: dire "questa mail
+   * non risulta" permetterebbe a chiunque di scoprire chi e' iscritto.
+   */
+  async function recuperaPassword() {
+    setErrore(null);
+    setAvviso(null);
+    if (!email.includes("@")) {
+      return setErrore("Scrivi prima la tua mail qui sopra, poi premi «Password dimenticata».");
+    }
+    if (!supabaseConfigurato()) return;
+
+    await createClient().auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset`,
+    });
+    setAvviso(
+      "Se questo indirizzo è registrato, ti arriva una mail con il link per scegliere una nuova password.",
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <div className="flex rounded-[--radius-pill] border border-linea bg-crema p-[3px]">
@@ -105,6 +126,18 @@ export function AuthForm() {
       <Field label="Password" errore={errors.password?.message}>
         <input type="password" className={inputClass} {...register("password")} />
       </Field>
+
+      {/* Senza questo, chi accede dal browser e non ricorda la password non ha
+          nessuna via d'uscita: il link esisteva solo nell'app mobile. */}
+      {modo === "accedi" && (
+        <button
+          type="button"
+          onClick={recuperaPassword}
+          className="self-start text-[12.5px] font-bold text-grigio underline underline-offset-2 hover:text-inchiostro"
+        >
+          Password dimenticata?
+        </button>
+      )}
 
       {errore && <p className="text-[13px] font-semibold text-rosso">{errore}</p>}
       {avviso && (

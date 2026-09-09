@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { eliminaUtente } from "@/app/admin/credenziali/actions";
-import type { UtenteAdmin } from "@/lib/credenziali/utenti";
+// Da tipi.ts, non da utenti.ts: quel file contiene la service role key
+// e adesso ha "server-only", quindi importarlo qui romperebbe la build.
+import type { UtenteAdmin } from "@/lib/credenziali/tipi";
 import { inputClass } from "@/components/field";
 import { cn } from "@/lib/utils";
 

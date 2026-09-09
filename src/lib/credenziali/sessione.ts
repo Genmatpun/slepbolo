@@ -1,3 +1,6 @@
+// Barriera al build: qui si legge ADMIN_PASSWORD. Se un componente del
+// browser importasse questo file, la compilazione fallisce.
+import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 

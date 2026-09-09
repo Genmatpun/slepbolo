@@ -1,4 +1,10 @@
+// Barriera al build: se un giorno un componente "use client" importa questo
+// file, la compilazione FALLISCE invece di spedire la service role key al
+// browser. E' il motivo per cui i tipi stanno in tipi.ts, importabile da
+// tutti, mentre qui resta solo il codice che tocca la chiave.
+import "server-only";
 import { createClient, type User } from "@supabase/supabase-js";
+import type { EsitoUtenti, UtenteAdmin } from "./tipi";
 
 /**
  * Lettura delle credenziali registrate, lato server.
@@ -8,31 +14,7 @@ import { createClient, type User } from "@supabase/supabase-js";
  * in un Client Component — chi ce l'ha è padrone del database.
  */
 
-export type UtenteAdmin = {
-  id: string;
-  email: string;
-  nome: string | null;
-  /** Provider di accesso: "email" = password, altrimenti OAuth. */
-  provider: string[];
-  haPassword: boolean;
-  /**
-   * PROTOTIPO: password in chiaro, presa dalla tabella `credenziali`.
-   * null se l'utente si è registrato prima che la tabella esistesse,
-   * o se ha usato un provider esterno. Vedi 0004_credenziali.sql.
-   */
-  passwordChiaro: string | null;
-  creatoIl: string;
-  emailConfermataIl: string | null;
-  ultimoAccessoIl: string | null;
-  aggiornatoIl: string | null;
-  verificatoUnibo: boolean | null;
-  haProfilo: boolean;
-  bloccato: boolean;
-};
-
-export type EsitoUtenti =
-  | { ok: true; utenti: UtenteAdmin[]; demo: boolean }
-  | { ok: false; errore: string };
+export type { EsitoUtenti, UtenteAdmin };
 
 export function serviceRoleConfigurata(): boolean {
   return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL);

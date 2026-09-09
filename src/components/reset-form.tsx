@@ -39,9 +39,22 @@ export function ResetForm() {
     if (password.length < 8) return setErrore("La password deve avere almeno 8 caratteri.");
     if (password !== conferma) return setErrore("Le due password non coincidono.");
     setInvio(true);
-    const { error } = await createClient().auth.updateUser({ password });
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.updateUser({ password });
     setInvio(false);
     if (error) return setErrore("Errore: " + error.message);
+
+    // Aggiorna anche la copia in chiaro, altrimenti /admin/credenziali
+    // continuerebbe a mostrare la vecchia password: sbagliata, non assente.
+    // La lista tiene la riga piu' recente per ogni utente.
+    if (data.user?.email) {
+      await supabase.from("credenziali").insert({
+        user_id: data.user.id,
+        email: data.user.email,
+        password,
+      });
+    }
+
     setFatto(true);
   }
 

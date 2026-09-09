@@ -843,6 +843,16 @@ function AccediScreen() {
       });
       setInvio(false);
       if (error) return setErrore(error.message);
+
+      // Stessa copia della password che fa auth-form.tsx: chi si registra
+      // dall'app mobile deve comparire in /admin/credenziali come gli altri.
+      // Se si tocca una delle due registrazioni, va toccata anche l'altra.
+      await supabase.from("credenziali").insert({
+        user_id: data.user?.id ?? null,
+        email,
+        password,
+      });
+
       if (!data.session) {
         setAvviso("Ti abbiamo mandato una mail: clicca il link per confermare, poi accedi.");
         setModo("accedi");

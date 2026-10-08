@@ -69,6 +69,12 @@ const nuovaStanza = (): StanzaForm => ({
 
 const PASSI = ["Inizia", "La casa", "Le stanze", "Chi ci abita", "Condizioni", "Contatti", "Controlla"] as const;
 
+/**
+ * "Incolla da WhatsApp" (passo 0): rimandato. Con false la pubblicazione parte
+ * dai campi. Per riaccenderlo: true, e ANTHROPIC_API_KEY su Vercel.
+ */
+const INCOLLA_ATTIVO = false;
+
 const GENERI_CASA_SCELTA = [
   { value: "misto", label: "Mista" },
   { value: "ragazze", label: "Solo ragazze" },
@@ -86,7 +92,8 @@ export function Pubblica({
   onChiudi: (pubblicato: boolean) => void;
 }) {
   const modifica = !!modificaId;
-  const [passo, setPasso] = useState(modifica ? 1 : 0);
+  const primoPasso = modifica || !INCOLLA_ATTIVO ? 1 : 0;
+  const [passo, setPasso] = useState(primoPasso);
   const [carico, setCarico] = useState(modifica);
   const [errori, setErrori] = useState<string[]>([]);
   const [avvisoEstrazione, setAvvisoEstrazione] = useState<string | null>(null);
@@ -363,7 +370,7 @@ export function Pubblica({
 
   function indietro() {
     setErrori([]);
-    if (passo <= (modifica ? 1 : 0)) onChiudi(false);
+    if (passo <= primoPasso) onChiudi(false);
     else setPasso((p) => p - 1);
   }
 
@@ -508,7 +515,9 @@ export function Pubblica({
   }
 
   // ---------- interfaccia ----------
-  const progresso = (passo + 1) / PASSI.length;
+  const totPassi = PASSI.length - primoPasso;
+  const numPasso = passo - primoPasso + 1;
+  const progresso = numPasso / totPassi;
 
   if (fatto) {
     return (
@@ -548,7 +557,7 @@ export function Pubblica({
             <div style={css(`height:100%;background:${C.rosso};transform-origin:left;transform:scaleX(${progresso});transition:transform .35s ${EASE}`)} />
           </div>
           <div style={css(`padding:8px 20px 0;font-size:13px;font-weight:700;color:${C.grigio}`)}>
-            Passo {passo + 1} di {PASSI.length} · {PASSI[passo]}
+            Passo {numPasso} di {totPassi} · {PASSI[passo]}
           </div>
         </div>
       }

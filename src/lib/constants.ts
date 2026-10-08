@@ -9,24 +9,38 @@ export const SEDI_UNIBO = [
   { key: "agraria", nome: "Agraria — Filippo Re", lat: 44.4995, lng: 11.352 },
   { key: "belle-arti", nome: "Economia — Belle Arti", lat: 44.4975, lng: 11.349 },
   { key: "sant-orsola", nome: "Medicina — Sant'Orsola", lat: 44.488, lng: 11.362 },
+  // Complesso del Navile, via Piero Gobetti 85 (Chimica, Astronomia). Coordinate da OpenStreetMap.
+  { key: "navile", nome: "Navile — Chimica e Astronomia", lat: 44.521, lng: 11.337 },
 ] as const;
 
 export type SedeKey = (typeof SEDI_UNIBO)[number]["key"];
 
-/** Zone di Bologna coperte dal servizio. */
+/**
+ * Zone di Bologna coperte dal servizio, in ordine alfabetico: con 20 voci
+ * il menu si scorre, e l'ordine alfabetico è l'unico che non va imparato.
+ */
 export const ZONE_BOLOGNA = [
+  "Barca",
   "Bolognina",
+  "Borgo Panigale",
+  "Centro storico",
   "Cirenaica",
-  "Saragozza",
+  "Corticella",
+  "Costa Saragozza",
+  "Fiera",
+  "Irnerio",
+  "Lame",
   "Massarenti",
+  "Mazzini",
   "Murri",
   "Navile",
-  "San Donato",
-  "Santo Stefano",
-  "Zamboni",
-  "Barca",
-  "Fiera",
   "Porta Saffi",
+  "San Donato",
+  "San Vitale",
+  "Santo Stefano",
+  "Saragozza",
+  "Savena",
+  "Zamboni",
 ] as const;
 
 export type Zona = (typeof ZONE_BOLOGNA)[number];
@@ -41,6 +55,84 @@ export const GENERI_CASA = [
 export const TIPI_STANZA = [
   { value: "singola", label: "Singola" },
   { value: "doppia", label: "Doppia" },
+] as const;
+
+/** Stato di una stanza, con le parole che l'host userebbe. */
+export const STATI_STANZA = [
+  { value: "libera", label: "Libera" },
+  { value: "in_trattativa", label: "In trattativa" },
+  { value: "occupata", label: "Presa" },
+] as const;
+
+/**
+ * Tipi di contratto. Non c'è "senza contratto": un affitto non registrato è
+ * irregolare, e SLEPBOLO non lo ospita. L'agenzia è un campo a parte.
+ */
+export const CONTRATTI = [
+  "4+4",
+  "3+2 a canone concordato",
+  "Per studenti (6-36 mesi)",
+  "Transitorio",
+  "Subentro",
+  "Da definire",
+] as const;
+
+export const CAPARRE = ["Nessuna", "1 mensilità", "2 mensilità", "3 mensilità"] as const;
+
+/** Cosa coprono le spese mensili: "325 + 65, comprende condominio, TARI e Wi-Fi". */
+export const SPESE_VOCI = [
+  "Condominio",
+  "TARI",
+  "Wi-Fi",
+  "Luce",
+  "Gas",
+  "Acqua",
+  "Riscaldamento",
+] as const;
+
+/** Dotazioni della casa. */
+export const SERVIZI_CASA = [
+  "Wi-Fi",
+  "Lavatrice",
+  "Lavastoviglie",
+  "Asciugatrice",
+  "Forno",
+  "Microonde",
+  "Aria condizionata",
+  "Riscaldamento autonomo",
+  "Balcone",
+  "Ascensore",
+  "Arredata",
+  "Posto bici",
+] as const;
+
+/** Preferenze di chi abita la casa su chi cercano. */
+export const PREFERENZE_CASA = [
+  { value: "solo_studenti", label: "Solo studenti" },
+  { value: "lavoratori_ok", label: "Anche lavoratori" },
+  { value: "coppie_ok", label: "Coppie benvenute" },
+  { value: "amici_ok", label: "Anche due amici insieme" },
+  { value: "italiano", label: "Si parla italiano" },
+  { value: "english_ok", label: "English ok" },
+  { value: "no_brevi", label: "No affitti brevi" },
+] as const;
+
+export function etichettaPreferenza(v: string): string {
+  return PREFERENZE_CASA.find((p) => p.value === v)?.label ?? v;
+}
+
+export const LINGUE = ["Italiano", "English", "Español", "Français", "Deutsch", "Português", "Altro"] as const;
+
+/** Anno di corso, come lo dicono gli studenti. */
+export const ANNI_CORSO = [
+  "1° triennale",
+  "2° triennale",
+  "3° triennale",
+  "1° magistrale",
+  "2° magistrale",
+  "Ciclo unico",
+  "Erasmus",
+  "Dottorato",
 ] as const;
 
 /** Genere del singolo coinquilino, mostrato al posto del nome (privacy). */
@@ -90,9 +182,12 @@ export const PREZZO_MIN = 250;
 export const PREZZO_MAX = 700;
 
 export const MOTIVI_SEGNALAZIONE = [
-  { value: "caparra_anticipata", label: "Richiesta di caparra anticipata" },
-  { value: "annuncio_inesistente", label: "Annuncio inesistente" },
-  { value: "prezzo_diverso", label: "Prezzo diverso dal reale" },
+  { value: "gia_presa", label: "La stanza è già presa" },
+  { value: "caparra_anticipata", label: "Chiede soldi prima della visita" },
+  { value: "annuncio_inesistente", label: "La casa non esiste o le foto sono false" },
+  { value: "prezzo_diverso", label: "Il prezzo è diverso da quello scritto" },
+  { value: "agenzia", label: "È un'agenzia" },
+  { value: "altro", label: "Altro" },
 ] as const;
 
 // ---------- Calcolo distanze ----------

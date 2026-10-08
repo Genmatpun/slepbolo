@@ -37,18 +37,28 @@ export function RichiesteLista({ richieste, adminId }: { richieste: Richiesta[];
       .from("apartments")
       .insert({
         host_id: r.submitted_by ?? adminId, // l'annuncio è di chi lo ha proposto
-        titolo: d.titolo, descrizione: d.descrizione, zona: d.zona, via: d.via,
+        titolo: d.titolo, descrizione: d.descrizione, zona: d.zona,
+        // il database arrotonda le coordinate pubbliche; le esatte vanno in annunci_privati
         lat: coord?.lat ?? null, lng: coord?.lng ?? null, piano: d.piano, genere: d.genere,
         camere_totali: d.camere_totali, camere_occupate: d.camere_occupate, servizi: d.servizi,
-        contratto_tipo: d.contratto, cauzione: d.cauzione,
-        contatto_nome: d.contatto_nome || null, contatto_telefono: d.contatto_telefono || null,
-        contatto_whatsapp: d.contatto_whatsapp || null, contatto_email: d.contatto_email || null,
-        contatto_note: d.contatto_note || null, attivo: true,
+        contratto_tipo: d.contratto, cauzione: d.cauzione, attivo: true,
       })
       .select("id")
       .single();
 
     if (error || !apt) { setBusy(null); alert("Errore: " + error?.message); return; }
+
+    // Contatti e via: nella tabella che leggono solo host, admin e studenti UniBo.
+    await supabase.from("annunci_privati").upsert(
+      {
+        apartment_id: apt.id,
+        contatto_nome: d.contatto_nome || null, contatto_telefono: d.contatto_telefono || null,
+        contatto_whatsapp: d.contatto_whatsapp || null, contatto_email: d.contatto_email || null,
+        contatto_note: d.contatto_note || null, via: d.via || null,
+        lat: coord?.lat ?? null, lng: coord?.lng ?? null,
+      },
+      { onConflict: "apartment_id" },
+    );
 
     const libere = Math.max(0, d.camere_totali - d.camere_occupate);
     if (libere > 0) {

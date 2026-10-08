@@ -37,11 +37,39 @@ export default async function UtentiPage() {
     .order("created_at", { ascending: false });
   const utenti = (data ?? []) as Profilo[];
 
+  // Da quale canale è arrivato ognuno (?da= nel link che pubblichiamo).
+  const { data: prov } = await supabase.from("provenienze").select("user_id, canale");
+  const canaleDi = new Map((prov ?? []).map((p) => [p.user_id as string, p.canale as string]));
+
+  const conteggi = new Map<string, number>();
+  for (const u of utenti) {
+    const c = canaleDi.get(u.id) ?? "diretto";
+    conteggi.set(c, (conteggi.get(c) ?? 0) + 1);
+  }
+  const classifica = [...conteggi.entries()].sort((a, b) => b[1] - a[1]);
+
   return (
     <Shell>
-      <p className="mb-6 text-[15px] text-grigio">
+      <p className="mb-4 text-[15px] text-grigio">
         {utenti.length} {utenti.length === 1 ? "persona registrata" : "persone registrate"}
       </p>
+
+      {utenti.length > 0 && (
+        <div className="mb-6 border-2 border-linea p-4">
+          <div className="eyebrow mb-2">Da dove arrivano</div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {classifica.map(([canale, n]) => (
+              <span key={canale} className="text-[14px]">
+                <b>{n}</b> <span className="text-grigio">{canale}</span>
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[12.5px] text-grigio">
+            «diretto» = chi è arrivato senza un link tracciato. Per tracciarne uno, aggiungi
+            <code className="mx-1 bg-crema px-1">?da=tiktok</code> in fondo al link che pubblichi.
+          </p>
+        </div>
+      )}
 
       {utenti.length === 0 ? (
         <div className="border-2 border-dashed border-linea p-10 text-center text-grigio">
@@ -63,6 +91,11 @@ export default async function UtentiPage() {
                   {u.verificato_unibo && (
                     <span className="border border-verde/40 bg-verde/[0.12] px-2 py-0.5 text-[10px] font-bold uppercase text-verde">
                       ✓ UniBo
+                    </span>
+                  )}
+                  {canaleDi.has(u.id) && (
+                    <span className="border border-arancio/50 bg-arancio/[0.1] px-2 py-0.5 text-[10px] font-bold uppercase text-arancio">
+                      da {canaleDi.get(u.id)}
                     </span>
                   )}
                 </div>

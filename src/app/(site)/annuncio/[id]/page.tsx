@@ -51,8 +51,9 @@ export default async function AnnuncioPage({
           <div className="eyebrow">{a.zona}</div>
           <h1 className="mt-1.5 text-[28px]">{a.titolo}</h1>
           <p className="mt-1 text-sm text-grigio">
-            {a.via ? `${a.via} · ` : ""}
-            {a.piano} · {LABEL_GENERE[a.genere]}
+            {/* La via non è pubblica: la vede solo chi contatta l'host, dall'app. */}
+            {a.piano ? `${a.piano} · ` : ""}
+            {LABEL_GENERE[a.genere]}
           </p>
         </div>
         <RoomsIndicator totali={a.camere_totali} libere={libere} className="mt-2" />

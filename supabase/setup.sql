@@ -1,7 +1,10 @@
 ﻿-- ============================================================
 -- SLEPBOLO — SETUP COMPLETO (schema + sicurezza + realtime + storage)
 -- Generato da 0001/0002/0003. Incolla tutto nel SQL Editor di Supabase ed esegui.
--- Poi, opzionale, esegui supabase/seed.sql per i 12 annunci di esempio.
+-- Poi esegui IN ORDINE le migrazioni da 0004 a 0014 in supabase/migrations:
+-- questo file non le contiene.
+-- Solo alla fine, se vuoi, esegui supabase/seed.sql per i 12 annunci di esempio
+-- (usa la tabella annunci_privati, che nasce con la 0014).
 -- ============================================================
 
 

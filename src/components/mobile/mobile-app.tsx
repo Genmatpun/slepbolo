@@ -1,159 +1,160 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
-import { ZONE_BOLOGNA, SEDI_UNIBO, personaCoinquilino, ABIT_CATEGORIE, GENERI_COINQUILINO } from "@/lib/constants";
+import { SEDI_UNIBO, ZONE_BOLOGNA, haversineKm, personaCoinquilino } from "@/lib/constants";
+import { leggiProvenienza } from "@/lib/provenienza";
+import { giorniDa, quandoAggiornato } from "@/lib/types";
+import type { MobileAnnuncio } from "@/lib/annuncio-mobile";
 import { MappaBologna } from "./mappa-bologna";
+import { BOTTONE, C, EASE, TOKENS_CSS, css, euro } from "./stile";
+import { Avviso, Chip, Foglio, Freschezza, Icona, Segmenti } from "./ui";
+import { Quadratini, etichettaCamere, etichettaGenereCasa, riepilogoCoinq } from "./pezzi";
+import { Dettaglio, sfondoCasa } from "./dettaglio";
+import { ProfiloTab, type Preferenze, type Utente } from "./profilo";
+import { BachecaCerco, IlMioCerco } from "./cerco";
+import { Pubblica } from "./pubblica";
 
-/** Riepilogo privacy-safe dei coinquilini: "2 ragazze · 1 ragazzo". */
-function riepilogoCoinq(coinq: { g: string }[]): string {
-  const f = coinq.filter((c) => c.g === "ragazza").length;
-  const m = coinq.filter((c) => c.g === "ragazzo").length;
-  const altro = coinq.length - f - m;
-  const parti: string[] = [];
-  if (f) parti.push(`${f} ${f === 1 ? "ragazza" : "ragazze"}`);
-  if (m) parti.push(`${m} ${m === 1 ? "ragazzo" : "ragazzi"}`);
-  if (altro) parti.push(`${altro} ${altro === 1 ? "persona" : "persone"}`);
-  return parti.join(" · ") || "Nessuno ancora";
-}
+export type { MobileAnnuncio } from "@/lib/annuncio-mobile";
 
 // ============================================================
-// SLEPBOLO Mobile — app iOS-style (design "SLEPBOLO Mobile.dc.html")
+// SLEPBOLO Mobile — l'app.
 // Stessa palette UniBo, impaginazione a vista: griglia, filetti 2px,
 // angoli vivi, titoli grandi. Dati reali passati dal server.
+//
+// Le case si guardano senza account. L'account (mail UniBo) serve per
+// contattare chi affitta, pubblicare e vedere chi cerca stanza.
 // ============================================================
 
-export interface MobileAnnuncio {
+type Tab = "scopri" | "cerca" | "mappa" | "salvati" | "profilo";
+
+/** Una casa salvata: teniamo i dati essenziali per riconoscerla anche quando sparisce. */
+interface Salvata {
   id: string;
   titolo: string;
   zona: string;
-  via: string;
-  lat: number;
-  lng: number;
-  tot: number;
-  occ: number;
   prezzo: number;
-  tipo: string;
-  spese: string;
-  speseIncl: boolean;
-  min: number;
-  contratto: string;
-  servizi: string[];
-  descrizione: string;
-  coinq: { g: string; e: number | null; c: string; ab: string[]; pending: boolean }[];
-  contattoNome: string | null;
-  telefono: string | null;
-  whatsapp: string | null;
-  email: string | null;
-  contattoNote: string | null;
-  foto: string[];
 }
 
-const SEDI = [
-  { nome: "Zamboni", lat: 44.4967, lng: 11.3518 },
-  { nome: "Terracini", lat: 44.5215, lng: 11.3289 },
-  { nome: "Sant'Orsola", lat: 44.488, lng: 11.362 },
-];
+const FILTRI_RAPIDI = ["Sotto 400 €", "Spese incluse", "Singola", "Libera subito"] as const;
+type FiltroRapido = (typeof FILTRI_RAPIDI)[number];
 
-const GRAD = [
-  "linear-gradient(135deg,#A2001D,#E4572E)",
-  "linear-gradient(135deg,#E4572E,#F0A868)",
-  "linear-gradient(135deg,#7A0016,#A2001D)",
-  "linear-gradient(135deg,#B5651D,#E4572E)",
-  "linear-gradient(135deg,#8C3B2E,#D9744F)",
-];
+type Ordine = "recenti" | "prezzo" | "vicine";
 
-/** Converte una stringa CSS "a:b;c:d" in oggetto style React — fedele al design. */
-function css(s: string): CSSProperties {
-  const o: Record<string, string> = {};
-  for (const decl of s.split(";")) {
-    const i = decl.indexOf(":");
-    if (i < 0) continue;
-    const k = decl.slice(0, i).trim();
-    const v = decl.slice(i + 1).trim();
-    if (!k) continue;
-    o[k.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = v;
+interface FiltriAvanzati {
+  prezzoMax: number | null;
+  zone: string[];
+  casa: "tutte" | "ragazze" | "ragazzi";
+  registrato: boolean;
+  breve: boolean;
+}
+const FILTRI_VUOTI: FiltriAvanzati = { prezzoMax: null, zone: [], casa: "tutte", registrato: false, breve: false };
+
+const ZAMBONI = { lat: 44.4967, lng: 11.3518 };
+const AGGIORNA_DOPO_MS = 5 * 60_000;
+
+const coverBg = (a: MobileAnnuncio, n = 0) =>
+  a.foto[n] ? `${C.ink} url('${a.foto[n]}') center/cover no-repeat` : sfondoCasa(a.id);
+const glifo = (a: MobileAnnuncio) => a.zona.slice(0, 3).toUpperCase();
+
+function leggiJSON<T>(chiave: string, area: "local" | "session", base: T): T {
+  try {
+    const raw = (area === "local" ? localStorage : sessionStorage).getItem(chiave);
+    return raw ? (JSON.parse(raw) as T) : base;
+  } catch {
+    return base;
   }
-  return o as CSSProperties;
+}
+function scriviJSON(chiave: string, area: "local" | "session", v: unknown) {
+  try {
+    (area === "local" ? localStorage : sessionStorage).setItem(chiave, JSON.stringify(v));
+  } catch {
+    // memoria piena o finestra privata: pazienza
+  }
 }
 
-function hash(id: string): number {
-  let n = 0;
-  for (const ch of id) n = (n + ch.charCodeAt(0)) % 997;
-  return n;
-}
-const grad = (id: string) => GRAD[(hash(id) * 7) % GRAD.length];
-const coverBg = (a: MobileAnnuncio) => (a.foto[0] ? `#000 url('${a.foto[0]}') center/cover no-repeat` : grad(a.id));
-const coverN = (a: MobileAnnuncio, n: number) => (a.foto[n] ? `#000 url('${a.foto[n]}') center/cover no-repeat` : grad(a.id));
-const glyph = (a: MobileAnnuncio) => a.zona.slice(0, 3).toUpperCase();
-const libere = (a: MobileAnnuncio) => a.tot - a.occ;
-const labelCamere = (n: number) => (n === 1 ? "1 camera libera" : `${n} camere libere`);
+export function MobileApp({
+  annunci,
+  casaIniziale = null,
+  pubblicaIniziale = null,
+}: {
+  annunci: MobileAnnuncio[];
+  casaIniziale?: string | null;
+  pubblicaIniziale?: { modificaId: string | null } | null;
+}) {
+  const router = useRouter();
+  const [aggiornando, avviaAggiornamento] = useTransition();
+  const ultimoCarico = useRef(Date.now());
 
-function squares(a: MobileAnnuncio, size = 12) {
-  return Array.from({ length: a.tot }, (_, i) => ({
-    st: `display:block;width:${size}px;height:${size}px;background:${i >= a.occ ? "#2e7d5b" : "#e5dccb"};animation:sbPop .34s cubic-bezier(.2,1.4,.4,1) both;animation-delay:${i * 70}ms`,
-  }));
-}
-
-function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371,
-    dLa = ((b.lat - a.lat) * Math.PI) / 180,
-    dLo = ((b.lng - a.lng) * Math.PI) / 180;
-  const h =
-    Math.sin(dLa / 2) ** 2 +
-    Math.sin(dLo / 2) ** 2 * Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180);
-  return 2 * R * Math.asin(Math.sqrt(h)) * 1.35;
-}
-
-const CHIP_FILTRI = ["Sotto 400 €", "Spese incluse", "2+ camere libere", "Breve periodo", "Contratto registrato"];
-
-// Abitudini divise per categoria (profilo studente)
-interface Utente {
-  id: string;
-  email: string;
-  nome: string;
-  cognome: string;
-}
-
-export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
-  // undefined = sto controllando la sessione; null = non loggato
+  // undefined = sto controllando la sessione; null = non entrato
   const [user, setUser] = useState<Utente | null | undefined>(undefined);
-  const [tab, setTab] = useState("scopri");
-  const [idx, setIdx] = useState(0);
+  const [accesso, setAccesso] = useState(false);
+  const [tab, setTab] = useState<Tab>("scopri");
+  const [detail, setDetail] = useState<string | null>(null);
+  const [pubblica, setPubblica] = useState<{ modificaId: string | null } | null>(null);
+  const [cercoAperto, setCercoAperto] = useState(false);
+  const [pref, setPref] = useState<Preferenze>({ budget: null, zone: [], sede: null });
+  const [avviso, setAvviso] = useState<{ testo: string; azione?: string; onAzione?: () => void } | null>(null);
+  const timerAvviso = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Scopri
+  const [passate, setPassate] = useState<string[]>([]);
   const [scopriFoto, setScopriFoto] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [saved, setSaved] = useState<string[]>([]);
-  const [detail, setDetail] = useState<string | null>(null);
-  const [filtri, setFiltri] = useState<string[]>([]);
-  const [pull, setPull] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selPin, setSelPin] = useState(0);
-  // preferenze profilo che filtrano SOLO l'Esplora (Scopri)
-  const [pref, setPref] = useState<{ budget: number | null; zona: string | null }>({ budget: null, zona: null });
-
+  const [guida, setGuida] = useState(false);
   const sx = useRef(0);
+
+  // Salvati
+  const [salvate, setSalvate] = useState<Salvata[]>([]);
+
+  // Cerca
+  const [sezioneCerca, setSezioneCerca] = useState<"case" | "persone">("case");
+  const [filtri, setFiltri] = useState<FiltroRapido[]>([]);
+  const [avanzati, setAvanzati] = useState<FiltriAvanzati>(FILTRI_VUOTI);
+  const [ordine, setOrdine] = useState<Ordine>("recenti");
+  const [pannelloFiltri, setPannelloFiltri] = useState(false);
+  const [pull, setPull] = useState(0);
   const py = useRef<number | null>(null);
   const ps = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Mappa
+  const [selPin, setSelPin] = useState(0);
+
+  const mostraAvviso = useCallback((testo: string, azione?: string, onAzione?: () => void) => {
+    if (timerAvviso.current) clearTimeout(timerAvviso.current);
+    setAvviso({ testo, azione, onAzione });
+    timerAvviso.current = setTimeout(() => setAvviso(null), azione ? 5000 : 2800);
+  }, []);
 
   // ---- sessione + profilo ----
   useEffect(() => {
+    // Da dove arriva chi apre l'app (?da=tiktok nel link): lo mettiamo da parte
+    // subito, perché l'indirizzo può cambiare prima che la persona si registri.
+    leggiProvenienza();
+
     if (!supabaseConfigurato()) {
       setUser(null);
       return;
     }
     const supabase = createClient();
+
     type SbUser = { id: string; email?: string; user_metadata?: Record<string, unknown> };
     async function carica(u: SbUser) {
       if (!u.email) return setUser(null);
       const meta = u.user_metadata ?? {};
       const { data } = await supabase
         .from("profiles")
-        .select("nome, cognome, abitudini, budget_max, zona_preferita")
+        .select("nome, cognome, budget_max, zona_preferita, zone_preferite, sede_principale")
         .eq("id", u.id)
         .single();
-      setPref({ budget: data?.budget_max ?? null, zona: data?.zona_preferita ?? null });
+      const zone = (data?.zone_preferite as string[] | null | undefined) ?? [];
+      setPref({
+        budget: data?.budget_max ?? null,
+        zone: zone.length ? zone : data?.zona_preferita ? [data.zona_preferita] : [],
+        sede: data?.sede_principale ?? null,
+      });
       let nome = data?.nome ?? "";
       let cognome = data?.cognome ?? "";
       // Sincronizza nome/cognome dai dati di registrazione se il profilo è vuoto
@@ -163,6 +164,16 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
         await supabase.from("profiles").update({ nome, cognome, eta: meta.eta ?? null }).eq("id", u.id);
       }
       setUser({ id: u.id, email: u.email, nome, cognome });
+      setAccesso(false);
+
+      // Il canale da cui è arrivata questa persona, una volta sola: se c'è già
+      // la riga, il database la lascia stare. È una statistica, se salta pazienza.
+      const da = leggiProvenienza();
+      if (da) {
+        void supabase
+          .from("provenienze")
+          .upsert({ user_id: u.id, canale: da }, { onConflict: "user_id", ignoreDuplicates: true });
+      }
     }
     supabase.auth.getUser().then(({ data: { user: u } }) => (u ? carica(u) : setUser(null)));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
@@ -171,28 +182,77 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // ---- salvati: salvati sul dispositivo, per utente ----
-  const chiaveSalvati = user ? `slepbolo-salvati-${user.id}` : null;
+  const loggato = !!user;
+
+  // ---- salvati: sul dispositivo, per utente (o per l'ospite) ----
+  const chiaveSalvati = user ? `slepbolo-salvati-${user.id}` : user === null ? "slepbolo-salvati-ospite" : null;
   useEffect(() => {
     if (!chiaveSalvati) return;
-    try {
-      const raw = localStorage.getItem(chiaveSalvati);
-      if (raw) setSaved(JSON.parse(raw));
-    } catch {}
+    const grezzi = leggiJSON<(string | Salvata)[]>(chiaveSalvati, "local", []);
+    // il formato vecchio era solo l'elenco degli id
+    setSalvate(
+      grezzi
+        .map((s) => {
+          if (typeof s !== "string") return s;
+          const a = annunci.find((x) => x.id === s);
+          return a ? { id: a.id, titolo: a.titolo, zona: a.zona, prezzo: a.prezzo } : null;
+        })
+        .filter((s): s is Salvata => !!s),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chiaveSalvati]);
   useEffect(() => {
-    if (chiaveSalvati) localStorage.setItem(chiaveSalvati, JSON.stringify(saved));
-  }, [saved, chiaveSalvati]);
+    if (chiaveSalvati) scriviJSON(chiaveSalvati, "local", salvate);
+  }, [salvate, chiaveSalvati]);
 
-  // Riparte dalla prima foto quando cambia la card in Scopri
-  useEffect(() => { setScopriFoto(0); }, [idx]);
+  const isSalvata = (id: string) => salvate.some((s) => s.id === id);
+  const toggleSalva = (a: MobileAnnuncio) =>
+    setSalvate((p) => (p.some((s) => s.id === a.id) ? p.filter((s) => s.id !== a.id) : [...p, { id: a.id, titolo: a.titolo, zona: a.zona, prezzo: a.prezzo }]));
 
-  // A ogni riapertura dell'app ripropone anche le case skippate (riparte da capo in Esplora)
+  // ---- Scopri: le case già viste restano viste per tutta la sessione ----
   useEffect(() => {
-    const onVis = () => { if (document.visibilityState === "visible") setIdx(0); };
+    setPassate(leggiJSON<string[]>("slepbolo-passate", "session", []));
+    setGuida(!leggiJSON<boolean>("slepbolo-guida-vista", "local", false));
+  }, []);
+  useEffect(() => {
+    scriviJSON("slepbolo-passate", "session", passate);
+  }, [passate]);
+
+  // ---- aggiornamento vero dei dati ----
+  const aggiorna = useCallback(() => {
+    avviaAggiornamento(() => router.refresh());
+    ultimoCarico.current = Date.now();
+  }, [router]);
+
+  // tornando sull'app dopo un po', ricarica le case (invece di ripartire da capo)
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && Date.now() - ultimoCarico.current > AGGIORNA_DOPO_MS) aggiorna();
+    };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, []);
+  }, [aggiorna]);
+
+  // ---- link condiviso: /app?casa=<id> ----
+  const casaGestita = useRef(false);
+  useEffect(() => {
+    if (!casaIniziale || casaGestita.current) return;
+    casaGestita.current = true;
+    if (annunci.some((a) => a.id === casaIniziale)) setDetail(casaIniziale);
+    else mostraAvviso("Questa casa non è più disponibile. Guarda le altre.");
+  }, [casaIniziale, annunci, mostraAvviso]);
+
+  // ---- link /app?pubblica=1 o ?modifica=<id>: serve l'accesso, poi si apre il modulo ----
+  const pubblicaInSospeso = useRef(pubblicaIniziale);
+  useEffect(() => {
+    if (!pubblicaInSospeso.current || user === undefined) return;
+    if (user === null) {
+      setAccesso(true);
+      return;
+    }
+    setPubblica(pubblicaInSospeso.current);
+    pubblicaInSospeso.current = null;
+  }, [user]);
 
   async function logout() {
     if (supabaseConfigurato()) await createClient().auth.signOut();
@@ -200,22 +260,53 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
     setTab("scopri");
   }
 
-  const filtrati = () =>
-    annunci.filter(
-      (a) =>
-        (!filtri.includes("Spese incluse") || a.speseIncl) &&
-        (!filtri.includes("Sotto 400 €") || a.prezzo < 400) &&
-        (!filtri.includes("Breve periodo") || a.min <= 3) &&
-        (!filtri.includes("Contratto registrato") || a.contratto === "Registrato") &&
-        (!filtri.includes("2+ camere libere") || libere(a) >= 2),
-    );
-
-  // Esplora: filtrato sulle preferenze del profilo. Cerca: filtri a chip. Mappa: tutte.
-  const poolScopri = annunci.filter(
-    (a) => (!pref.budget || a.prezzo <= pref.budget) && (!pref.zona || a.zona === pref.zona),
+  // ---- pool di case ----
+  const poolScopri = useMemo(
+    () =>
+      annunci.filter(
+        (a) =>
+          !passate.includes(a.id) &&
+          (!pref.budget || a.prezzo <= pref.budget) &&
+          (!pref.zone.length || pref.zone.includes(a.zona)),
+      ),
+    [annunci, passate, pref],
   );
-  const poolCerca = filtrati();
-  const poolMappa = annunci;
+  const preferenzeAttive = !!pref.budget || pref.zone.length > 0;
+
+  const origineDistanza = useMemo(() => {
+    const s = pref.sede ? SEDI_UNIBO.find((x) => x.nome === pref.sede || x.key === pref.sede) : undefined;
+    return s ? { punto: { lat: s.lat, lng: s.lng }, nome: s.nome } : { punto: ZAMBONI, nome: "Zamboni" };
+  }, [pref.sede]);
+
+  const oggi = new Date().toISOString().slice(0, 10);
+  const poolCerca = useMemo(() => {
+    const filtrate = annunci.filter((a) => {
+      if (filtri.includes("Sotto 400 €") && a.prezzo >= 400) return false;
+      if (filtri.includes("Spese incluse") && !a.speseIncl) return false;
+      if (filtri.includes("Singola") && !a.stanze.some((s) => s.stato !== "occupata" && s.tipo === "Singola")) return false;
+      if (filtri.includes("Libera subito") && !(a.dal && a.dal <= oggi)) return false;
+      if (avanzati.prezzoMax && a.prezzo > avanzati.prezzoMax) return false;
+      if (avanzati.zone.length && !avanzati.zone.includes(a.zona)) return false;
+      if (avanzati.casa !== "tutte" && a.genere !== avanzati.casa) return false;
+      if (avanzati.registrato && !a.registrato) return false;
+      if (avanzati.breve && a.min > 3) return false;
+      return true;
+    });
+    const per = [...filtrate];
+    if (ordine === "prezzo") per.sort((x, y) => x.prezzo - y.prezzo);
+    else if (ordine === "vicine") per.sort((x, y) => haversineKm(x, origineDistanza.punto) - haversineKm(y, origineDistanza.punto));
+    else per.sort((x, y) => giorniDa(x.aggiornato) - giorniDa(y.aggiornato) || x.prezzo - y.prezzo);
+    return per;
+  }, [annunci, filtri, avanzati, ordine, origineDistanza, oggi]);
+
+  const nAvanzati =
+    (avanzati.prezzoMax ? 1 : 0) + (avanzati.zone.length ? 1 : 0) + (avanzati.casa !== "tutte" ? 1 : 0) + (avanzati.registrato ? 1 : 0) + (avanzati.breve ? 1 : 0);
+  const filtriAttivi = filtri.length + nAvanzati;
+  const togliFiltri = () => {
+    setFiltri([]);
+    setAvanzati(FILTRI_VUOTI);
+  };
+
   const det = detail ? annunci.find((a) => a.id === detail) ?? null : null;
 
   // ---- swipe ----
@@ -227,567 +318,701 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
   const onMove = (e: React.PointerEvent) => {
     if (dragging) setDragX(e.clientX - sx.current);
   };
-  const avanza = (save: boolean) => {
-    const a = poolScopri[idx];
-    setSaved((prev) => (save && a && !prev.includes(a.id) ? [...prev, a.id] : prev));
-    setIdx((i) => i + 1);
+  const finisciDrag = () => {
     setDragX(0);
     setDragging(false);
   };
-  const salva = () => avanza(true);
-  const passa = () => avanza(false);
+  const avanza = (salva: boolean) => {
+    const a = poolScopri[0];
+    finisciDrag();
+    if (!a) return;
+    const giaSalvata = isSalvata(a.id);
+    if (salva && !giaSalvata) toggleSalva(a);
+    setPassate((p) => [...p, a.id]);
+    setScopriFoto(0);
+    if (guida) chiudiGuida();
+    mostraAvviso(salva ? "Salvata" : "Passata", "Annulla", () => {
+      setPassate((p) => p.filter((x) => x !== a.id));
+      if (salva && !giaSalvata) setSalvate((p) => p.filter((s) => s.id !== a.id));
+      setAvviso(null);
+    });
+  };
   const onUp = () => {
-    if (dragX > 95) salva();
-    else if (dragX < -95) passa();
-    else {
-      setDragX(0);
-      setDragging(false);
-    }
+    if (dragX > 95) avanza(true);
+    else if (dragX < -95) avanza(false);
+    else finisciDrag();
   };
 
-  // ---- pull to refresh ----
+  function chiudiGuida() {
+    setGuida(false);
+    scriviJSON("slepbolo-guida-vista", "local", true);
+  }
+
+  // ---- tira per aggiornare (Cerca) ----
   const pullDown = (e: React.PointerEvent) => {
     py.current = e.clientY;
     ps.current = (e.currentTarget as HTMLElement).scrollTop;
   };
   const pullMove = (e: React.PointerEvent) => {
-    if (py.current == null || ps.current > 0 || refreshing) return;
+    if (py.current == null || ps.current > 0 || aggiornando) return;
     const d = e.clientY - py.current;
     if (d > 0) setPull(Math.min(d * 0.55, 78));
   };
   const pullUp = () => {
     py.current = null;
-    if (pull > 46) {
-      setRefreshing(true);
-      setPull(52);
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => {
-        setRefreshing(false);
-        setPull(0);
-      }, 1400);
-    } else if (pull) setPull(0);
+    if (pull > 46) aggiorna();
+    setPull(0);
   };
 
-  const selA = poolMappa[Math.min(selPin, Math.max(0, poolMappa.length - 1))] || annunci[0];
+  const selA = poolCerca[Math.min(selPin, Math.max(0, poolCerca.length - 1))];
+  const scegliPin = useCallback((i: number) => setSelPin(i), []);
 
-  const row = (a: MobileAnnuncio) => (
-    <div
+  const apriPubblica = (modificaId: string | null = null) => {
+    if (!user) return setAccesso(true);
+    setDetail(null);
+    setPubblica({ modificaId });
+  };
+
+  // ---------- pezzi ----------
+  const etichette = (a: MobileAnnuncio) =>
+    [
+      a.inTrattativa && !a.stanze.some((s) => s.stato === "libera") ? { testo: "In trattativa", tono: "ambra" } : null,
+      a.liberi === 1 && a.stanze.some((s) => s.stato === "libera") ? { testo: "Ultimo posto", tono: "caldo" } : null,
+      etichettaGenereCasa(a.genere) ? { testo: etichettaGenereCasa(a.genere) as string } : null,
+      a.speseIncl ? { testo: "Spese incluse" } : null,
+      a.registrato ? { testo: "Contratto registrato" } : null,
+      a.min <= 3 ? { testo: "Breve periodo" } : null,
+    ]
+      .filter(Boolean)
+      .slice(0, 3) as { testo: string; tono?: "ambra" | "caldo" }[];
+
+  const stileEtichetta = (t: { tono?: "ambra" | "caldo" }) =>
+    t.tono === "ambra"
+      ? `border:1px solid ${C.ambra};background:${C.ambraFondo};color:${C.ambraTesto};padding:5px 9px;font-size:12px;font-weight:800`
+      : t.tono === "caldo"
+        ? `border:1px solid rgba(228,87,46,.4);background:rgba(228,87,46,.12);color:${C.arancioTesto};padding:5px 9px;font-size:12px;font-weight:800`
+        : `border:1px solid ${C.linea};background:${C.crema};color:${C.grigio};padding:5px 9px;font-size:12px;font-weight:700`;
+
+  const riga = (a: MobileAnnuncio) => (
+    <button
+      type="button"
       key={a.id}
       onClick={() => setDetail(a.id)}
-      style={css("display:flex;gap:13px;padding:14px 20px;border-top:1px solid #e5dccb;cursor:pointer;background:transparent")}
+      style={css(`width:100%;display:flex;gap:13px;padding:14px 20px;border:0;border-top:1px solid ${C.linea};cursor:pointer;background:transparent;font-family:inherit;text-align:left;color:${C.ink}`)}
     >
       <div
+        aria-hidden
         style={css(
           `width:64px;height:64px;flex:none;display:grid;place-items:center;background:${coverBg(a)};color:rgba(255,255,255,.35);font-size:19px;font-weight:900;letter-spacing:-.05em`,
         )}
       >
-        {a.foto.length ? "" : glyph(a)}
+        {a.foto.length ? "" : glifo(a)}
       </div>
-      <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:6px")}>
+      <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:5px")}>
         <div style={css("display:flex;align-items:baseline;gap:8px")}>
-          <span style={css("font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#e4572e")}>
-            {a.zona}
-          </span>
-          <span style={css("margin-left:auto;font-size:18px;font-weight:900;letter-spacing:-.03em")}>{a.prezzo} €</span>
+          <span style={css(`font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${C.arancioTesto}`)}>{a.zona}</span>
+          <span style={css("margin-left:auto;font-size:18px;font-weight:900;letter-spacing:-.03em")}>{euro(a.prezzo)}</span>
         </div>
         <div style={css("font-size:15px;font-weight:700;letter-spacing:-.02em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>
           {a.titolo}
         </div>
-        <div style={css("display:flex;align-items:center;gap:6px")}>
-          {squares(a, 10).map((s, i) => (
-            <span key={i} style={css(s.st)} />
-          ))}
-          <span style={css("font-size:12px;font-weight:600;color:#736b62")}>
-            {libere(a)} su {a.tot} · {a.tipo.toLowerCase()}
-          </span>
+        <div style={css("display:flex;align-items:center;gap:6px;flex-wrap:wrap")}>
+          <Quadratini a={a} size={10} />
+          <span style={css(`font-size:12.5px;font-weight:600;color:${C.grigio}`)}>{etichettaCamere(a)}</span>
         </div>
+        <Freschezza testo={quandoAggiornato(a.aggiornato)} giorni={giorniDa(a.aggiornato)} />
       </div>
-    </div>
+    </button>
   );
 
-  const tabDefs: [string, string][] = [
+  const tabDefs: [Tab, string][] = [
     ["scopri", "Scopri"],
     ["cerca", "Cerca"],
     ["mappa", "Mappa"],
     ["salvati", "Salvati"],
-    ["profilo", "Profilo"],
+    ["profilo", user ? "Profilo" : "Entra"],
   ];
 
-  const stack = poolScopri.slice(idx, idx + 3);
+  const stack = poolScopri.slice(0, 3);
+  const titoloGrande = "font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1";
+  const testata = "calc(56px + env(safe-area-inset-top))";
 
   return (
-    <div style={css("min-height:100dvh;background:#e9e2d5;display:flex;justify-content:center")}>
+    <div style={css(`${TOKENS_CSS};min-height:100dvh;background:${C.fondo};display:flex;justify-content:center`)}>
       <style>{`
         @keyframes sbIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
         @keyframes sbSlide{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
-        @keyframes sbPop{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:scale(1)}}
-        @keyframes sbPopPin{from{opacity:0;transform:translate(-50%,-50%) scale(.2)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+        @keyframes sbFade{from{opacity:0}to{opacity:1}}
+        @keyframes sbPop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
         @keyframes sbSpin{to{transform:rotate(360deg)}}
         @keyframes sbSheet{from{transform:translateY(100%)}to{transform:none}}
-        @keyframes sbBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
         .sb-noscroll::-webkit-scrollbar{display:none}
+        .sb-app ::selection{background:${C.rosso};color:${C.crema}}
+        .sb-app :focus-visible{outline:3px solid ${C.arancio};outline-offset:2px}
+        .sb-app input,.sb-app textarea,.sb-app select{caret-color:${C.rosso}}
+        .sb-app input::placeholder,.sb-app textarea::placeholder{color:${C.grigio};opacity:1}
+        .sb-app .sb-accesso input::placeholder{color:rgba(250,243,231,.84)}
+        .sb-app .sb-accesso :focus-visible{outline-color:${C.crema}}
+        @media (prefers-reduced-motion: reduce){
+          @keyframes sbIn{from{opacity:0}to{opacity:1}}
+          @keyframes sbSlide{from{opacity:0}to{opacity:1}}
+          @keyframes sbSheet{from{opacity:0}to{opacity:1}}
+          @keyframes sbPop{from{opacity:0}to{opacity:1}}
+        }
       `}</style>
 
       <div
-        className="sb-noscroll"
-        style={css(
-          "position:relative;width:100%;max-width:440px;min-height:100dvh;height:100dvh;background:#faf3e7;overflow:hidden;color:#1b1815",
-        )}
+        className="sb-app sb-noscroll"
+        style={css(`position:relative;width:100%;max-width:440px;min-height:100dvh;height:100dvh;background:${C.crema};overflow:hidden;color:${C.ink}`)}
       >
         {/* ---------- CARICAMENTO ---------- */}
         {user === undefined && (
-          <div style={css("position:absolute;inset:0;background:#a2001d;display:grid;place-items:center;animation:sbIn .3s ease both")}>
+          <div style={css(`position:absolute;inset:0;z-index:200;background:${C.rosso};display:grid;place-items:center;animation:sbFade .3s ease both`)}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-chiaro.png" alt="SLEPBOLO" width={200} height={125} style={css("width:170px;height:auto;display:block")} />
           </div>
         )}
 
-        {/* ---------- ACCEDI (login/registrazione UniBo) ---------- */}
-        {user === null && <AccediScreen />}
-
         {/* ---------- APP ---------- */}
-        {user && (
-          <div style={css("position:absolute;inset:0;display:flex;flex-direction:column")}>
-            <div
-              key={tab}
-              style={css("flex:1;overflow:hidden;position:relative;animation:sbSlide .32s cubic-bezier(.22,.9,.3,1) both")}
-            >
-              {/* SCOPRI */}
-              {tab === "scopri" && (
-                <div style={css("height:100%;display:flex;flex-direction:column;padding:62px 20px 0")}>
-                  <div style={css("display:flex;align-items:flex-end;justify-content:space-between")}>
-                    <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Scopri</h1>
-                    <div style={css("font-size:12px;font-weight:700;color:#736b62;padding-bottom:4px")}>
-                      {Math.max(0, poolScopri.length - idx)} case
-                    </div>
-                  </div>
-                  <div style={css("height:2px;background:#1b1815;margin:12px 0 0")} />
-                  <div
-                    onPointerDown={onDown}
-                    onPointerMove={onMove}
-                    onPointerUp={onUp}
-                    onPointerCancel={onUp}
-                    style={css("position:relative;flex:1;margin:18px 0 0;touch-action:none")}
-                  >
-                    {stack.length === 0 && (
-                      <div style={css("position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px")}>
-                        {poolScopri.length === 0 && (pref.budget || pref.zona) ? (
-                          <div>
-                            <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em")}>Nessuna casa con le tue preferenze.</div>
-                            <div style={css("font-size:13.5px;color:#736b62;margin-top:6px;max-width:26ch")}>
-                              Allarga budget o zona nel Profilo, oppure guardale tutte in Cerca e Mappa.
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em")}>Hai visto tutto.</div>
-                            <div style={css("font-size:13.5px;color:#736b62;margin-top:6px")}>Le case salvate sono nel tab Salvati.</div>
-                            <button onClick={() => setIdx(0)} style={css("margin-top:16px;border:2px solid #1b1815;background:#1b1815;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;padding:12px 20px;cursor:pointer")}>Rivedi le case</button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {stack
-                      .map((a, i) => ({ a, i }))
-                      .reverse()
-                      .map(({ a, i }) => {
-                        const drag = i === 0 ? dragX : 0;
-                        const rot = drag / 22;
-                        const tf = `translate(${drag}px, ${i * -10}px) rotate(${rot}deg) scale(${1 - i * 0.045})`;
-                        const wrap = `position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;background:#fffdf9;border:2px solid #1b1815;overflow:hidden;transform:${tf};z-index:${10 - i};transition:${dragging && i === 0 ? "none" : "transform .32s cubic-bezier(.2,.9,.3,1)"};box-shadow:${i === 0 ? "0 14px 40px rgba(27,24,21,.18)" : "none"}`;
-                        const tags = [
-                          libere(a) === 1 ? { testo: "Ultima camera", hot: true } : null,
-                          a.speseIncl ? { testo: "Spese incluse" } : null,
-                          a.min <= 3 ? { testo: "Breve periodo" } : null,
-                          a.contratto === "Registrato" ? { testo: "Contratto registrato" } : null,
-                        ]
-                          .filter(Boolean)
-                          .slice(0, 3) as { testo: string; hot?: boolean }[];
-                        return (
-                          <div key={a.id} style={css(wrap)}>
-                            <div style={css(`position:relative;height:210px;flex:none;display:grid;place-items:center;background:${coverN(a, i === 0 ? scopriFoto % Math.max(1, a.foto.length) : 0)}`)}>
-                              <span style={css("position:absolute;left:14px;top:14px;background:#faf3e7;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase")}>
-                                {a.zona}
-                              </span>
-                              {!a.foto.length && <span style={css("font-size:74px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.22)")}>{glyph(a)}</span>}
-                              {i === 0 && a.foto.length > 1 && (
-                                <>
-                                  <button
-                                    onPointerDown={(e) => e.stopPropagation()}
-                                    onClick={(e) => { e.stopPropagation(); setScopriFoto((p) => (p - 1 + a.foto.length) % a.foto.length); }}
-                                    style={css("position:absolute;left:10px;top:50%;transform:translateY(-50%);width:42px;height:42px;border:0;background:rgba(27,24,21,.72);color:#faf3e7;font-size:24px;font-weight:900;cursor:pointer;display:grid;place-items:center")}
-                                    aria-label="Foto precedente"
-                                  >‹</button>
-                                  <button
-                                    onPointerDown={(e) => e.stopPropagation()}
-                                    onClick={(e) => { e.stopPropagation(); setScopriFoto((p) => (p + 1) % a.foto.length); }}
-                                    style={css("position:absolute;right:10px;top:50%;transform:translateY(-50%);width:42px;height:42px;border:0;background:rgba(27,24,21,.72);color:#faf3e7;font-size:24px;font-weight:900;cursor:pointer;display:grid;place-items:center")}
-                                    aria-label="Foto successiva"
-                                  >›</button>
-                                  <span style={css("position:absolute;right:14px;top:14px;background:rgba(27,24,21,.75);color:#faf3e7;padding:4px 9px;font-size:12px;font-weight:800")}>{(scopriFoto % a.foto.length) + 1}/{a.foto.length}</span>
-                                  <div style={css("position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;gap:6px")}>
-                                    {a.foto.map((_, k) => (
-                                      <span key={k} style={css(`width:7px;height:7px;border-radius:99px;background:${k === scopriFoto % a.foto.length ? "#faf3e7" : "rgba(250,243,231,.45)"}`)} />
-                                    ))}
-                                  </div>
-                                </>
-                              )}
-                              <span style={css("position:absolute;right:14px;bottom:14px;background:#1b1815;color:#faf3e7;padding:7px 12px;font-size:19px;font-weight:900;letter-spacing:-.03em")}>
-                                {a.prezzo} €<span style={css("font-size:11px;font-weight:600")}>/mese</span>
-                              </span>
-                            </div>
-                            <div style={css("padding:16px 16px 18px;display:flex;flex-direction:column;gap:11px;flex:1")}>
-                              <h2 style={css("margin:0;font-size:21px;font-weight:800;letter-spacing:-.035em;line-height:1.08")}>{a.titolo}</h2>
-                              <div style={css("display:flex;align-items:center;gap:7px")}>
-                                {squares(a).map((s, k) => (
-                                  <span key={k} style={css(s.st)} />
-                                ))}
-                                <span style={css("font-size:12.5px;font-weight:700;color:#736b62")}>
-                                  {labelCamere(libere(a))} su {a.tot}
-                                </span>
-                              </div>
-                              <div style={css("height:1px;background:#e5dccb")} />
-                              <div style={css("display:flex;gap:8px;align-items:center")}>
-                                {a.coinq.slice(0, 3).map((c, k) => (
-                                  <span
-                                    key={k}
-                                    style={css("width:26px;height:26px;flex:none;display:grid;place-items:center;background:#f0e7d6;font-size:15px")}
-                                  >
-                                    {personaCoinquilino(c.g).emoji}
-                                  </span>
-                                ))}
-                                <span style={css("font-size:12.5px;color:#736b62;font-weight:600")}>
-                                  {riepilogoCoinq(a.coinq)}
-                                </span>
-                              </div>
-                              <div style={css("margin-top:auto;display:flex;gap:6px;flex-wrap:wrap")}>
-                                {tags.map((t, k) => (
-                                  <span
-                                    key={k}
-                                    style={css(
-                                      t.hot
-                                        ? "border:1px solid rgba(228,87,46,.35);background:rgba(228,87,46,.12);color:#B23A17;padding:5px 9px;font-size:11.5px;font-weight:800"
-                                        : "border:1px solid #e5dccb;background:#faf3e7;color:#736b62;padding:5px 9px;font-size:11.5px;font-weight:700",
-                                    )}
-                                  >
-                                    {t.testo}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div
-                              style={css(
-                                `position:absolute;left:18px;top:18px;border:3px solid #2e7d5b;color:#2e7d5b;font-size:20px;font-weight:900;letter-spacing:.06em;padding:5px 12px;transform:rotate(-12deg);opacity:${i === 0 ? Math.max(0, Math.min(1, dragX / 90)) : 0};background:rgba(250,243,231,.85)`,
-                              )}
-                            >
-                              SALVA
-                            </div>
-                            <div
-                              style={css(
-                                `position:absolute;right:18px;top:18px;border:3px solid #a2001d;color:#a2001d;font-size:20px;font-weight:900;letter-spacing:.06em;padding:5px 12px;transform:rotate(12deg);opacity:${i === 0 ? Math.max(0, Math.min(1, -dragX / 90)) : 0};background:rgba(250,243,231,.85)`,
-                              )}
-                            >
-                              PASSA
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                  <div style={css("display:flex;gap:10px;padding:14px 0 90px")}>
-                    <button onClick={passa} style={css("flex:1;height:52px;border:2px solid #1b1815;background:transparent;font-family:inherit;font-size:14px;font-weight:800;letter-spacing:-.01em;cursor:pointer;color:#1b1815")}>
-                      Passa
-                    </button>
-                    <button onClick={salva} style={css("flex:1;height:52px;border:0;background:#a2001d;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}>
-                      Salva
-                    </button>
-                    <button onClick={() => poolScopri[idx] && setDetail(poolScopri[idx].id)} style={css("width:52px;height:52px;border:0;background:#1b1815;color:#faf3e7;font-size:19px;cursor:pointer")}>
-                      →
-                    </button>
+        <div style={css("position:absolute;inset:0;display:flex;flex-direction:column")}>
+          <main key={tab} style={css(`flex:1;overflow:hidden;position:relative;animation:sbFade .25s ${EASE} both`)}>
+            {/* SCOPRI */}
+            {tab === "scopri" && (
+              <div style={css(`height:100%;display:flex;flex-direction:column;padding:${testata} 20px 0`)}>
+                <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:12px")}>
+                  <h1 style={css(titoloGrande)}>Scopri</h1>
+                  <div style={css(`font-size:13px;font-weight:700;color:${C.grigio};padding-bottom:4px;text-align:right`)}>
+                    {poolScopri.length} {poolScopri.length === 1 ? "casa" : "case"}
+                    {preferenzeAttive ? " · sulle tue preferenze" : ""}
                   </div>
                 </div>
-              )}
-
-              {/* CERCA */}
-              {tab === "cerca" && (
+                <div style={css(`height:2px;background:${C.ink};margin:12px 0 0`)} />
                 <div
-                  onPointerDown={pullDown}
-                  onPointerMove={pullMove}
-                  onPointerUp={pullUp}
-                  onPointerCancel={pullUp}
-                  className="sb-noscroll"
-                  style={css("height:100%;overflow:auto;padding:62px 0 96px;touch-action:pan-y")}
+                  onPointerDown={onDown}
+                  onPointerMove={onMove}
+                  onPointerUp={onUp}
+                  onPointerCancel={finisciDrag}
+                  onLostPointerCapture={() => dragging && onUp()}
+                  style={css("position:relative;flex:1;margin:18px 0 0;touch-action:none")}
                 >
-                  <div style={css("padding:0 20px")}>
-                    <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Cerca</h1>
-                    <div style={css("height:2px;background:#1b1815;margin:12px 0 14px")} />
-                  </div>
-                  <div
-                    style={css(
-                      `display:flex;align-items:center;justify-content:center;gap:9px;height:${pull}px;overflow:hidden;transition:${pull === 0 || refreshing ? "height .3s ease" : "none"}`,
-                    )}
-                  >
-                    <span
-                      style={css(
-                        `width:14px;height:14px;border:2px solid #e5dccb;border-top-color:#a2001d;border-radius:99px;display:block;animation:sbSpin .8s linear infinite;animation-play-state:${refreshing ? "running" : "paused"}`,
+                  {stack.length === 0 && (
+                    <div style={css("position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px")}>
+                      {annunci.length === 0 ? (
+                        <div>
+                          <div style={css("font-size:20px;font-weight:900;letter-spacing:-.03em")}>Nessuna casa, per ora.</div>
+                          <div style={css(`font-size:14.5px;color:${C.grigio};margin-top:8px;max-width:28ch;line-height:1.45`)}>
+                            Le stanze arrivano ogni giorno. Hai una stanza libera? Sii il primo a pubblicarla.
+                          </div>
+                          <button type="button" onClick={() => apriPubblica()} style={css(`${BOTTONE.scuro};margin-top:16px`)}>
+                            Pubblica una stanza
+                          </button>
+                        </div>
+                      ) : passate.length === 0 && preferenzeAttive ? (
+                        <div>
+                          <div style={css("font-size:20px;font-weight:900;letter-spacing:-.03em")}>Nessuna casa con le tue preferenze.</div>
+                          <div style={css(`font-size:14.5px;color:${C.grigio};margin-top:8px;max-width:28ch;line-height:1.45`)}>
+                            Allarga budget o zone nel Profilo, oppure guardale tutte in Cerca.
+                          </div>
+                          <button type="button" onClick={() => setTab("cerca")} style={css(`${BOTTONE.scuro};margin-top:16px`)}>
+                            Vai a Cerca
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={css("font-size:20px;font-weight:900;letter-spacing:-.03em")}>Hai visto tutto.</div>
+                          <div style={css(`font-size:14.5px;color:${C.grigio};margin-top:8px`)}>Le case salvate sono in Salvati.</div>
+                          <button type="button" onClick={() => setPassate([])} style={css(`${BOTTONE.scuro};margin-top:16px`)}>
+                            Rivedi le case
+                          </button>
+                        </div>
                       )}
-                    />
-                    <span style={css("font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#736b62")}>
-                      {refreshing ? "Aggiorno…" : "Tira per aggiornare"}
-                    </span>
-                  </div>
-                  <div className="sb-noscroll" style={css("display:flex;gap:8px;overflow:auto;padding:0 20px 14px")}>
-                    {CHIP_FILTRI.map((label) => {
-                      const on = filtri.includes(label);
+                    </div>
+                  )}
+                  {stack
+                    .map((a, i) => ({ a, i }))
+                    .reverse()
+                    .map(({ a, i }) => {
+                      const drag = i === 0 ? dragX : 0;
+                      const rot = drag / 22;
+                      const tf = `translate(${drag}px, ${i * -10}px) rotate(${rot}deg) scale(${1 - i * 0.045})`;
+                      const wrap = `position:absolute;inset:0;display:flex;flex-direction:column;background:${C.carta};border:2px solid ${C.ink};overflow:hidden;transform:${tf};z-index:${10 - i};transition:${dragging && i === 0 ? "none" : `transform .32s ${EASE}`};box-shadow:${i === 0 ? "0 14px 40px rgba(27,24,21,.18)" : "none"}`;
+                      const nFoto = Math.max(1, a.foto.length);
                       return (
-                        <button
-                          key={label}
-                          onClick={() => setFiltri(on ? filtri.filter((x) => x !== label) : [...filtri, label])}
-                          style={css(
-                            `flex:none;border:2px solid #1b1815;background:${on ? "#1b1815" : "transparent"};color:${on ? "#faf3e7" : "#1b1815"};padding:8px 13px;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .18s,color .18s`,
-                          )}
-                        >
-                          {label}
-                        </button>
+                        <article key={a.id} aria-hidden={i !== 0} aria-label={i === 0 ? a.titolo : undefined} style={css(wrap)}>
+                          <div style={css(`position:relative;height:210px;flex:none;display:grid;place-items:center;background:${coverBg(a, i === 0 ? scopriFoto % nFoto : 0)}`)}>
+                            <span style={css(`position:absolute;left:14px;top:14px;background:${C.crema};padding:5px 10px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase`)}>
+                              {a.zona}
+                            </span>
+                            {!a.foto.length && (
+                              <span aria-hidden style={css("font-size:74px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.22)")}>
+                                {glifo(a)}
+                              </span>
+                            )}
+                            {i === 0 && a.foto.length > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setScopriFoto((p) => (p - 1 + a.foto.length) % a.foto.length);
+                                  }}
+                                  aria-label="Foto precedente"
+                                  style={css(`position:absolute;left:10px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;background:rgba(27,24,21,.72);color:${C.crema};cursor:pointer;display:grid;place-items:center`)}
+                                >
+                                  <Icona nome="indietro" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setScopriFoto((p) => (p + 1) % a.foto.length);
+                                  }}
+                                  aria-label="Foto successiva"
+                                  style={css(`position:absolute;right:10px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;background:rgba(27,24,21,.72);color:${C.crema};cursor:pointer;display:grid;place-items:center`)}
+                                >
+                                  <Icona nome="avanti" />
+                                </button>
+                                <span style={css(`position:absolute;right:14px;top:14px;background:rgba(27,24,21,.78);color:${C.crema};padding:4px 9px;font-size:12px;font-weight:800`)}>
+                                  {(scopriFoto % a.foto.length) + 1}/{a.foto.length}
+                                </span>
+                              </>
+                            )}
+                            <span style={css(`position:absolute;right:14px;bottom:14px;background:${C.ink};color:${C.crema};padding:7px 12px;font-size:19px;font-weight:900;letter-spacing:-.03em`)}>
+                              {euro(a.prezzo)}
+                              <span style={css("font-size:12px;font-weight:600")}> al mese</span>
+                            </span>
+                          </div>
+                          <div style={css("padding:16px 16px 18px;display:flex;flex-direction:column;gap:10px;flex:1;min-height:0")}>
+                            <h2 style={css("margin:0;font-size:21px;font-weight:800;letter-spacing:-.035em;line-height:1.08")}>{a.titolo}</h2>
+                            <div style={css("display:flex;align-items:center;gap:8px;flex-wrap:wrap")}>
+                              <Quadratini a={a} />
+                              <span style={css(`font-size:13px;font-weight:700;color:${C.grigio}`)}>{etichettaCamere(a)}</span>
+                            </div>
+                            <div style={css(`height:1px;background:${C.linea}`)} />
+                            <div style={css("display:flex;gap:8px;align-items:center")}>
+                              {a.coinq.slice(0, 3).map((c, k) => (
+                                <span key={k} aria-hidden style={css(`width:26px;height:26px;flex:none;display:grid;place-items:center;background:${C.sabbia};font-size:15px`)}>
+                                  {personaCoinquilino(c.g).emoji}
+                                </span>
+                              ))}
+                              <span style={css(`font-size:13px;color:${C.grigio};font-weight:600`)}>
+                                {a.coinq.length ? riepilogoCoinq(a.coinq) : "Coinquilini non ancora descritti"}
+                              </span>
+                            </div>
+                            <div style={css("margin-top:auto;display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap")}>
+                              {etichette(a).map((t, k) => (
+                                <span key={k} style={css(stileEtichetta(t))}>
+                                  {t.testo}
+                                </span>
+                              ))}
+                              <span style={css("margin-left:auto")}>
+                                <Freschezza testo={quandoAggiornato(a.aggiornato)} giorni={giorniDa(a.aggiornato)} />
+                              </span>
+                            </div>
+                          </div>
+                          <div
+                            aria-hidden
+                            style={css(
+                              `position:absolute;left:18px;top:18px;border:3px solid ${C.verde};color:${C.verde};font-size:20px;font-weight:900;letter-spacing:.06em;padding:5px 12px;transform:rotate(-12deg);opacity:${i === 0 ? Math.max(0, Math.min(1, dragX / 90)) : 0};background:rgba(250,243,231,.9)`,
+                            )}
+                          >
+                            SALVA
+                          </div>
+                          <div
+                            aria-hidden
+                            style={css(
+                              `position:absolute;right:18px;top:18px;border:3px solid ${C.rosso};color:${C.rosso};font-size:20px;font-weight:900;letter-spacing:.06em;padding:5px 12px;transform:rotate(12deg);opacity:${i === 0 ? Math.max(0, Math.min(1, -dragX / 90)) : 0};background:rgba(250,243,231,.9)`,
+                            )}
+                          >
+                            PASSA
+                          </div>
+                        </article>
                       );
                     })}
-                  </div>
-                  <div style={css("padding:0 20px 8px;font-size:12px;font-weight:700;color:#736b62")}>
-                    {poolCerca.length} case · ordinate per distanza da Terracini
-                  </div>
-                  {poolCerca.map((a) => row(a))}
-                </div>
-              )}
 
-              {/* MAPPA */}
-              {tab === "mappa" && (
-                <div style={css("height:100%;position:relative;background:#f0e7d6")}>
-                  <MappaBologna annunci={poolMappa} selId={selA?.id ?? null} onSelect={(i) => setSelPin(i)} />
-                  <div style={css("position:absolute;top:62px;left:20px;right:20px;display:flex;align-items:center;gap:10px;pointer-events:none;z-index:5")}>
-                    <h1 style={css("font-size:26px;font-weight:900;letter-spacing:-.045em;margin:0")}>Mappa</h1>
-                    <span style={css("font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#736b62;background:#faf3e7;padding:5px 9px")}>
-                      {poolMappa.length} case
-                    </span>
-                  </div>
-                  {selA && (
+                  {guida && stack.length > 0 && (
                     <div
-                      key={selA.id}
-                      style={css("position:absolute;left:0;right:0;bottom:78px;background:#fffdf9;border-top:2px solid #1b1815;padding:16px 20px 18px;animation:sbSheet .3s cubic-bezier(.2,.9,.3,1) both")}
+                      role="note"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      style={css(`position:absolute;left:12px;right:12px;bottom:12px;z-index:30;background:${C.ink};color:${C.crema};padding:16px;animation:sbIn .35s ${EASE} both`)}
                     >
-                      <div style={css("display:flex;align-items:baseline;gap:10px")}>
-                        <span style={css("font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#e4572e")}>{selA.zona}</span>
-                        <span style={css("margin-left:auto;font-size:22px;font-weight:900;letter-spacing:-.03em")}>{selA.prezzo} €</span>
-                      </div>
-                      <div style={css("font-size:17px;font-weight:800;letter-spacing:-.025em;line-height:1.12;margin:6px 0 10px")}>{selA.titolo}</div>
-                      <div style={css("display:flex;align-items:center;gap:7px;margin-bottom:12px")}>
-                        {squares(selA, 10).map((s, k) => (
-                          <span key={k} style={css(s.st)} />
-                        ))}
-                        <span style={css("font-size:12.5px;font-weight:600;color:#736b62")}>
-                          {labelCamere(libere(selA))} su {selA.tot} · {selA.via}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setDetail(selA.id)}
-                        style={css("width:100%;height:48px;border:0;background:#1b1815;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;text-align:left;padding:0 16px;display:flex;align-items:center;cursor:pointer")}
-                      >
-                        Vedi la casa<span style={css("margin-left:auto")}>→</span>
+                      <div style={css("font-size:16px;font-weight:900;letter-spacing:-.02em")}>Come funziona</div>
+                      <p style={css("margin:6px 0 12px;font-size:14px;line-height:1.45;color:rgba(250,243,231,.88)")}>
+                        Trascina la casa a destra per salvarla, a sinistra per passare: puoi sempre annullare. Di ogni casa vedi chi ci abita già. Guardare è libero; per contattare chi affitta serve la mail UniBo.
+                      </p>
+                      <button type="button" onClick={chiudiGuida} style={css(`min-height:44px;border:2px solid ${C.crema};background:transparent;color:${C.crema};font-family:inherit;font-size:14px;font-weight:800;padding:0 16px;cursor:pointer`)}>
+                        Ho capito
                       </button>
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* SALVATI */}
-              {tab === "salvati" && (
-                <div className="sb-noscroll" style={css("height:100%;overflow:auto;padding:62px 20px 96px")}>
-                  <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Salvati</h1>
-                  <div style={css("height:2px;background:#1b1815;margin:12px 0 16px")} />
-                  {saved.length === 0 && (
-                    <div style={css("border:2px dashed #e5dccb;padding:28px 20px;text-align:left")}>
-                      <div style={css("font-size:17px;font-weight:800;letter-spacing:-.02em")}>Ancora niente.</div>
-                      <div style={css("font-size:13.5px;color:#736b62;margin-top:6px")}>Scorri le case in Scopri e salva quelle giuste.</div>
-                    </div>
-                  )}
-                  <div style={css("margin:0 -20px")}>
-                    {saved
-                      .map((id) => annunci.find((a) => a.id === id))
-                      .filter((a): a is MobileAnnuncio => !!a)
-                      .map((a) => row(a))}
-                  </div>
+                <div style={css("display:flex;gap:10px;padding:14px 0 96px")}>
+                  <button type="button" onClick={() => avanza(false)} disabled={!stack.length} style={css(`${BOTTONE.contorno};height:52px;flex:1`)}>
+                    Passa
+                  </button>
+                  <button type="button" onClick={() => avanza(true)} disabled={!stack.length} style={css(`${BOTTONE.pieno};flex:1`)}>
+                    Salva
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => stack[0] && setDetail(stack[0].id)}
+                    disabled={!stack.length}
+                    aria-label="Apri i dettagli della casa"
+                    style={css(`${BOTTONE.scuro};width:52px;padding:0;display:grid;place-items:center`)}
+                  >
+                    <Icona nome="freccia" />
+                  </button>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* PROFILO */}
-              {tab === "profilo" && (
+            {/* CERCA */}
+            {tab === "cerca" && (
+              <div
+                onPointerDown={sezioneCerca === "case" ? pullDown : undefined}
+                onPointerMove={sezioneCerca === "case" ? pullMove : undefined}
+                onPointerUp={sezioneCerca === "case" ? pullUp : undefined}
+                onPointerCancel={sezioneCerca === "case" ? pullUp : undefined}
+                className="sb-noscroll"
+                style={css(`height:100%;overflow:auto;padding:${testata} 0 104px;touch-action:pan-y`)}
+              >
+                <div style={css("padding:0 20px")}>
+                  <h1 style={css(titoloGrande)}>Cerca</h1>
+                  <div style={css(`height:2px;background:${C.ink};margin:12px 0 14px`)} />
+                  <Segmenti
+                    etichetta="Cosa cerchi"
+                    valore={sezioneCerca}
+                    opzioni={[
+                      { value: "case", label: "Case" },
+                      { value: "persone", label: "Chi cerca stanza" },
+                    ]}
+                    onChange={setSezioneCerca}
+                  />
+                </div>
+
+                {sezioneCerca === "persone" ? (
+                  <div style={css("padding-top:16px")}>
+                    <BachecaCerco
+                      loggato={loggato}
+                      mioId={user?.id ?? null}
+                      onAccedi={() => setAccesso(true)}
+                      onModificaMio={() => setCercoAperto(true)}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      aria-live="polite"
+                      style={css(
+                        // l'altezza segue il dito: niente animazione sull'altezza, solo la comparsa sfuma
+                        `display:flex;align-items:center;justify-content:center;gap:9px;height:${aggiornando ? 44 : pull}px;overflow:hidden;opacity:${aggiornando || pull > 8 ? 1 : 0};transition:opacity .2s ${EASE}`,
+                      )}
+                    >
+                      <span
+                        style={css(
+                          `width:14px;height:14px;border:2px solid ${C.linea};border-top-color:${C.rosso};border-radius:99px;display:block;animation:sbSpin .8s linear infinite;animation-play-state:${aggiornando ? "running" : "paused"}`,
+                        )}
+                      />
+                      <span style={css(`font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${C.grigio}`)}>
+                        {aggiornando ? "Aggiorno…" : pull > 46 ? "Lascia per aggiornare" : "Tira per aggiornare"}
+                      </span>
+                    </div>
+                    <div className="sb-noscroll" style={css("display:flex;gap:8px;overflow:auto;padding:14px 20px 12px")}>
+                      <button
+                        type="button"
+                        onClick={() => setPannelloFiltri(true)}
+                        style={css(
+                          `flex:none;min-height:40px;border:2px solid ${C.ink};background:${nAvanzati ? C.ink : "transparent"};color:${nAvanzati ? C.crema : C.ink};padding:0 12px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap`,
+                        )}
+                      >
+                        Filtri{nAvanzati ? ` · ${nAvanzati}` : ""}
+                      </button>
+                      {FILTRI_RAPIDI.map((f) => (
+                        <Chip key={f} on={filtri.includes(f)} onClick={() => setFiltri(filtri.includes(f) ? filtri.filter((x) => x !== f) : [...filtri, f])}>
+                          {f}
+                        </Chip>
+                      ))}
+                    </div>
+                    <div style={css("padding:0 20px 10px;display:flex;align-items:center;gap:10px")}>
+                      <span style={css(`flex:1;font-size:13px;font-weight:700;color:${C.grigio}`)}>
+                        {poolCerca.length} {poolCerca.length === 1 ? "casa" : "case"}
+                      </span>
+                      <label style={css(`font-size:13px;font-weight:700;color:${C.grigio};display:flex;align-items:center;gap:6px`)}>
+                        Ordina
+                        <select
+                          value={ordine}
+                          onChange={(e) => setOrdine(e.target.value as Ordine)}
+                          style={css(`height:40px;border:2px solid ${C.linea};background:${C.carta};color:${C.ink};font-family:inherit;font-size:14px;font-weight:700;padding:0 8px`)}
+                        >
+                          <option value="recenti">Più recenti</option>
+                          <option value="prezzo">Prezzo più basso</option>
+                          <option value="vicine">Vicine a {origineDistanza.nome.split(" —")[0]}</option>
+                        </select>
+                      </label>
+                    </div>
+                    {poolCerca.length === 0 ? (
+                      <div style={css(`margin:6px 20px 0;border:2px dashed ${C.linea};padding:24px 18px`)}>
+                        <div style={css("font-size:18px;font-weight:900;letter-spacing:-.02em")}>
+                          {annunci.length === 0 ? "Nessuna casa, per ora." : "Nessuna casa con questi filtri."}
+                        </div>
+                        <div style={css(`font-size:14.5px;color:${C.grigio};margin-top:6px;line-height:1.45`)}>
+                          {annunci.length === 0 ? "Le stanze arrivano ogni giorno: ripassa presto." : "Prova a togliere qualche filtro."}
+                        </div>
+                        {filtriAttivi > 0 && (
+                          <button type="button" onClick={togliFiltri} style={css(`${BOTTONE.scuro};height:46px;margin-top:14px`)}>
+                            Togli i filtri
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      poolCerca.map((a) => riga(a))
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* MAPPA */}
+            {tab === "mappa" && (
+              <div style={css(`height:100%;position:relative;background:${C.sabbia}`)}>
+                <MappaBologna annunci={poolCerca} selId={selA?.id ?? null} onSelect={scegliPin} />
+                <div style={css(`position:absolute;top:${testata};left:20px;right:20px;display:flex;align-items:center;gap:10px;pointer-events:none;z-index:5`)}>
+                  <h1 style={css("font-size:26px;font-weight:900;letter-spacing:-.045em;margin:0;background:rgba(250,243,231,.9);padding:2px 8px")}>Mappa</h1>
+                  <span style={css(`font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${C.ink};background:${C.crema};padding:5px 9px`)}>
+                    {poolCerca.length} {poolCerca.length === 1 ? "casa" : "case"}
+                    {filtriAttivi ? " · filtri di Cerca" : ""}
+                  </span>
+                </div>
+                {selA && (
+                  <div
+                    key={selA.id}
+                    style={css(`position:absolute;left:0;right:0;bottom:78px;background:${C.carta};border-top:2px solid ${C.ink};padding:16px 20px 18px;animation:sbSheet .3s ${EASE} both;z-index:6`)}
+                  >
+                    <div style={css("display:flex;align-items:baseline;gap:10px")}>
+                      <span style={css(`font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${C.arancioTesto}`)}>{selA.zona}</span>
+                      <span style={css("margin-left:auto;font-size:22px;font-weight:900;letter-spacing:-.03em")}>{euro(selA.prezzo)}</span>
+                    </div>
+                    <div style={css("font-size:17px;font-weight:800;letter-spacing:-.025em;line-height:1.12;margin:6px 0 10px")}>{selA.titolo}</div>
+                    <div style={css("display:flex;align-items:center;gap:7px;margin-bottom:12px;flex-wrap:wrap")}>
+                      <Quadratini a={selA} size={10} />
+                      <span style={css(`font-size:13px;font-weight:600;color:${C.grigio}`)}>{etichettaCamere(selA)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDetail(selA.id)}
+                      style={css(`${BOTTONE.scuro};width:100%;height:48px;text-align:left;display:flex;align-items:center`)}
+                    >
+                      Vedi la casa
+                      <span style={css("margin-left:auto")}>
+                        <Icona nome="freccia" />
+                      </span>
+                    </button>
+                    <div style={css(`font-size:12px;color:${C.grigio};margin-top:8px`)}>La posizione sulla mappa è approssimata, per privacy.</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SALVATI */}
+            {tab === "salvati" && (
+              <div className="sb-noscroll" style={css(`height:100%;overflow:auto;padding:${testata} 20px 104px`)}>
+                <h1 style={css(titoloGrande)}>Salvati</h1>
+                <div style={css(`height:2px;background:${C.ink};margin:12px 0 16px`)} />
+                {salvate.length === 0 && (
+                  <div style={css(`border:2px dashed ${C.linea};padding:28px 20px`)}>
+                    <div style={css("font-size:18px;font-weight:800;letter-spacing:-.02em")}>Ancora niente.</div>
+                    <div style={css(`font-size:14.5px;color:${C.grigio};margin-top:6px`)}>Scorri le case in Scopri e salva quelle giuste.</div>
+                  </div>
+                )}
+                {!user && salvate.length > 0 && (
+                  <div style={css(`font-size:13.5px;color:${C.grigio};margin-bottom:10px;line-height:1.4`)}>
+                    Le case salvate restano su questo telefono.{" "}
+                    <button type="button" onClick={() => setAccesso(true)} style={css(`border:0;background:transparent;padding:0;font-family:inherit;font-size:13.5px;font-weight:800;color:${C.ink};text-decoration:underline;cursor:pointer`)}>
+                      Entra
+                    </button>{" "}
+                    per contattare chi affitta.
+                  </div>
+                )}
+                <div style={css("margin:0 -20px")}>
+                  {salvate.map((s) => {
+                    const a = annunci.find((x) => x.id === s.id);
+                    if (a) return riga(a);
+                    return (
+                      <div key={s.id} style={css(`display:flex;align-items:center;gap:12px;padding:14px 20px;border-top:1px solid ${C.linea};opacity:.75`)}>
+                        <div style={css("flex:1;min-width:0")}>
+                          <div style={css(`font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${C.grigio}`)}>
+                            {s.zona} · non più disponibile
+                          </div>
+                          <div style={css("font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:line-through")}>{s.titolo}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSalvate((p) => p.filter((x) => x.id !== s.id))}
+                          aria-label={`Togli ${s.titolo} dai salvati`}
+                          style={css(`width:44px;height:44px;border:0;background:transparent;color:${C.grigio};display:grid;place-items:center;cursor:pointer`)}
+                        >
+                          <Icona nome="chiudi" size={18} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* PROFILO / ENTRA */}
+            {tab === "profilo" &&
+              (user ? (
                 <ProfiloTab
                   user={user}
                   onLogout={logout}
-                  onSaved={(budget, zona) => {
-                    setPref({ budget, zona });
-                    setIdx(0);
-                  }}
+                  onSaved={(p) => setPref(p)}
+                  onPubblica={() => apriPubblica()}
+                  onModifica={(id) => apriPubblica(id)}
+                  onCambiato={aggiorna}
+                  onCerco={() => setCercoAperto(true)}
                 />
-              )}
-            </div>
+              ) : user === null ? (
+                <AccediScreen inLinea />
+              ) : null)}
+          </main>
 
-            {/* TAB BAR */}
-            <div style={css("position:absolute;left:0;right:0;bottom:0;height:78px;background:rgba(255,253,249,.92);backdrop-filter:blur(14px);border-top:2px solid #1b1815;display:grid;grid-template-columns:repeat(5,1fr);align-items:start;padding-top:9px;z-index:40")}>
-              {tabDefs.map(([k, label]) => {
-                const on = tab === k;
-                return (
-                  <button
-                    key={k}
-                    onClick={() => {
-                      setTab(k);
-                      setDetail(null);
-                    }}
-                    style={css("display:flex;flex-direction:column;align-items:center;gap:7px;background:transparent;border:0;padding:6px 0;cursor:pointer;font-family:inherit")}
-                  >
-                    <span style={css(`width:22px;height:4px;background:${on ? "#a2001d" : "#cfc5b4"};transition:background .2s`)} />
-                    <span style={css(`font-size:11px;font-weight:${on ? 800 : 600};color:${on ? "#1b1815" : "#736b62"};letter-spacing:-.01em`)}>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
+          {/* TAB BAR */}
+          <nav
+            aria-label="Sezioni dell'app"
+            style={css(`position:absolute;left:0;right:0;bottom:0;height:calc(78px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:rgba(255,253,249,.94);backdrop-filter:blur(14px);border-top:2px solid ${C.ink};display:grid;grid-template-columns:repeat(5,1fr);align-items:start;padding-top:8px;z-index:40`)}
+          >
+            {tabDefs.map(([k, label]) => {
+              const on = tab === k;
+              return (
+                <button
+                  type="button"
+                  key={k}
+                  aria-current={on ? "page" : undefined}
+                  onClick={() => {
+                    setTab(k);
+                    setDetail(null);
+                  }}
+                  style={css("display:flex;flex-direction:column;align-items:center;gap:7px;background:transparent;border:0;padding:8px 0;min-height:52px;cursor:pointer;font-family:inherit")}
+                >
+                  <span aria-hidden style={css(`width:22px;height:4px;background:${on ? C.rosso : C.spento};transition:background .2s`)} />
+                  <span style={css(`font-size:12px;font-weight:${on ? 800 : 600};color:${on ? C.ink : C.grigio};letter-spacing:-.01em`)}>
+                    {label}
+                    {k === "salvati" && salvate.length ? ` · ${salvate.length}` : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* ---------- DETTAGLIO ---------- */}
+        {det && (
+          <Dettaglio
+            a={det}
+            salvata={isSalvata(det.id)}
+            onSalva={() => toggleSalva(det)}
+            onChiudi={() => setDetail(null)}
+            loggato={loggato}
+            onAccedi={() => setAccesso(true)}
+            sedeUtente={pref.sede}
+            onAvviso={(t) => mostraAvviso(t)}
+          />
+        )}
+
+        {/* ---------- PUBBLICA ---------- */}
+        {pubblica && user && (
+          <Pubblica
+            userId={user.id}
+            modificaId={pubblica.modificaId}
+            onChiudi={(cambiato) => {
+              setPubblica(null);
+              if (cambiato) aggiorna();
+            }}
+          />
+        )}
+
+        {/* ---------- IL MIO CERCO ---------- */}
+        {cercoAperto && user && <IlMioCerco userId={user.id} onChiudi={() => setCercoAperto(false)} />}
+
+        {/* ---------- ACCEDI (sopra a tutto, quando serve) ---------- */}
+        {accesso && user === null && (
+          <div style={css("position:absolute;inset:0;z-index:150")}>
+            <AccediScreen onChiudi={() => setAccesso(false)} />
           </div>
         )}
 
-        {/* ---------- DETAIL ---------- */}
-        {det && (
-          <div style={css("position:absolute;inset:0;background:#faf3e7;z-index:70;display:flex;flex-direction:column;animation:sbSlide .34s cubic-bezier(.22,.9,.3,1) both")}>
-            <div className="sb-noscroll" style={css("flex:1;overflow:auto")}>
-              <div style={css("position:relative;height:270px")}>
-                {det.foto.length ? (
-                  <div className="sb-noscroll" style={css("display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory")}>
-                    {det.foto.map((u, k) => (
-                      <div key={k} style={css(`flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;background:#000 url('${u}') center/cover no-repeat`)} />
-                    ))}
-                  </div>
-                ) : (
-                  <div style={css(`height:100%;display:grid;place-items:center;background:${grad(det.id)}`)}>
-                    <span style={css("font-size:96px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.2)")}>{glyph(det)}</span>
-                  </div>
-                )}
-                <button onClick={() => setDetail(null)} style={css("position:absolute;left:18px;top:58px;width:40px;height:40px;border:0;background:#faf3e7;color:#1b1815;font-size:18px;font-weight:800;cursor:pointer")}>
-                  ←
-                </button>
-                <button
-                  onClick={() => setSaved(saved.includes(det.id) ? saved.filter((x) => x !== det.id) : [...saved, det.id])}
-                  style={css(
-                    `position:absolute;right:18px;top:58px;height:40px;padding:0 14px;border:0;background:${saved.includes(det.id) ? "#2e7d5b" : "#faf3e7"};color:${saved.includes(det.id) ? "#faf3e7" : "#1b1815"};font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;transition:background .2s`,
-                  )}
-                >
-                  {saved.includes(det.id) ? "✓ Salvata" : "Salva"}
-                </button>
-                {det.foto.length > 1 && (
-                  <span style={css("position:absolute;right:18px;bottom:16px;background:rgba(27,24,21,.75);color:#faf3e7;padding:5px 10px;font-size:12px;font-weight:800")}>📷 {det.foto.length} · scorri →</span>
-                )}
-                <span style={css("position:absolute;left:18px;bottom:16px;background:#faf3e7;padding:6px 11px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase")}>
-                  {det.zona} · {det.via}
-                </span>
+        {/* ---------- FILTRI ---------- */}
+        <Foglio aperto={pannelloFiltri} onChiudi={() => setPannelloFiltri(false)} titolo="Filtri">
+          <div style={css("display:flex;flex-direction:column;gap:18px")}>
+            <div>
+              <div style={css("font-size:14px;font-weight:800;margin-bottom:8px")}>
+                {avanzati.prezzoMax ? `Fino a ${avanzati.prezzoMax} € al mese` : "Qualsiasi prezzo"}
               </div>
-              <div style={css("padding:20px 20px 0")}>
-                <h1 style={css("margin:0;font-size:29px;font-weight:900;letter-spacing:-.04em;line-height:1.05")}>{det.titolo}</h1>
-                <div style={css("display:flex;align-items:baseline;gap:10px;margin-top:14px;border-top:2px solid #1b1815;border-bottom:2px solid #1b1815;padding:12px 0")}>
-                  <span style={css("font-size:34px;font-weight:900;letter-spacing:-.045em")}>{det.prezzo} €</span>
-                  <span style={css("font-size:13px;font-weight:700;color:#736b62")}>/mese · {det.spese}</span>
-                  <span style={css("margin-left:auto;font-size:12px;font-weight:800;background:#1b1815;color:#faf3e7;padding:5px 9px")}>{det.tipo}</span>
-                </div>
-                <div style={css("display:flex;align-items:center;gap:9px;padding:16px 0 4px")}>
-                  {squares(det, 14).map((s, k) => (
-                    <span key={k} style={css(s.st)} />
-                  ))}
-                  <span style={css("font-size:13.5px;font-weight:700")}>
-                    {labelCamere(libere(det))} su {det.tot}
-                  </span>
-                </div>
-              </div>
-              <div style={css("padding:18px 20px 0")}>
-                <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:12px")}>Chi ci abita già</div>
-                {det.coinq.map((p, k) => {
-                  const per = personaCoinquilino(p.g);
-                  return (
-                    <div key={k} style={css("display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid #e5dccb")}>
-                      <span style={css("width:42px;height:42px;flex:none;display:grid;place-items:center;background:#f0e7d6;font-size:22px")}>{per.emoji}</span>
-                      <div style={css("flex:1")}>
-                        <div style={css("font-size:15px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:7px;flex-wrap:wrap")}>
-                          <span>
-                            {per.label}
-                            {p.e ? `, ${p.e}` : ""}
-                          </span>
-                          {p.pending ? (
-                            <span style={css("border:1px solid #e4a11b;background:#fdf3dd;color:#9a6a00;padding:2px 6px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase")}>In attesa</span>
-                          ) : null}
-                        </div>
-                        {p.c ? <div style={css("font-size:12.5px;color:#736b62;font-weight:600")}>{p.c}</div> : null}
-                        {p.ab.length > 0 && (
-                          <div style={css("display:flex;flex-wrap:wrap;gap:5px;margin-top:7px")}>
-                            {p.ab.map((x, j) => (
-                              <span key={j} style={css("border:1px solid #e5dccb;background:#faf3e7;color:#736b62;padding:3px 8px;font-size:11px;font-weight:700")}>{x}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={css("padding:20px 20px 0")}>
-                <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:10px")}>Distanza dalle lezioni</div>
-                {SEDI.map((v) => {
-                  const k = km(det, v);
-                  return {
-                    nome: v.nome,
-                    bici: Math.max(1, Math.round((k / 14) * 60)),
-                    piedi: Math.max(1, Math.round((k / 4.8) * 60)),
-                  };
-                })
-                  .sort((a, b) => a.bici - b.bici)
-                  .map((d) => (
-                    <div key={d.nome} style={css("display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #e5dccb")}>
-                      <span style={css("font-size:14px;font-weight:700;letter-spacing:-.02em")}>{d.nome}</span>
-                      <span style={css("margin-left:auto;font-size:13px;font-weight:800")}>{d.bici}′ bici</span>
-                      <span style={css("font-size:13px;color:#736b62;font-weight:600")}>{d.piedi}′ a piedi</span>
-                    </div>
-                  ))}
-              </div>
-              <div style={css("padding:20px 20px 0;display:flex;flex-wrap:wrap;gap:7px")}>
-                {det.servizi.map((s, k) => (
-                  <span key={k} style={css("border:1px solid #e5dccb;background:#fffdf9;padding:6px 10px;font-size:12px;font-weight:700;color:#736b62")}>
-                    {s}
-                  </span>
+              <input
+                type="range"
+                min={250}
+                max={900}
+                step={10}
+                value={avanzati.prezzoMax ?? 900}
+                aria-label="Prezzo massimo"
+                aria-valuetext={avanzati.prezzoMax ? `${avanzati.prezzoMax} euro` : "qualsiasi"}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setAvanzati({ ...avanzati, prezzoMax: v >= 900 ? null : v });
+                }}
+                style={css(`width:100%;height:44px;accent-color:${C.rosso}`)}
+              />
+            </div>
+            <div>
+              <div style={css("font-size:14px;font-weight:800;margin-bottom:8px")}>Casa</div>
+              <Segmenti
+                etichetta="Chi abita la casa"
+                valore={avanzati.casa}
+                opzioni={[
+                  { value: "tutte", label: "Tutte" },
+                  { value: "ragazze", label: "Solo ragazze" },
+                  { value: "ragazzi", label: "Solo ragazzi" },
+                ]}
+                onChange={(v) => setAvanzati({ ...avanzati, casa: v })}
+              />
+            </div>
+            <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
+              <Chip on={avanzati.registrato} onClick={() => setAvanzati({ ...avanzati, registrato: !avanzati.registrato })}>
+                Contratto registrato
+              </Chip>
+              <Chip on={avanzati.breve} onClick={() => setAvanzati({ ...avanzati, breve: !avanzati.breve })}>
+                Breve periodo
+              </Chip>
+            </div>
+            <div>
+              <div style={css("font-size:14px;font-weight:800;margin-bottom:8px")}>Zone</div>
+              <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
+                {ZONE_BOLOGNA.map((z) => (
+                  <Chip
+                    key={z}
+                    on={avanzati.zone.includes(z)}
+                    onClick={() => setAvanzati({ ...avanzati, zone: avanzati.zone.includes(z) ? avanzati.zone.filter((x) => x !== z) : [...avanzati.zone, z] })}
+                  >
+                    {z}
+                  </Chip>
                 ))}
               </div>
-              <div style={css("padding:20px 20px 30px;font-size:14.5px;line-height:1.5;color:#3a332d")}>{det.descrizione}</div>
             </div>
-            <div style={css("padding:12px 20px 24px;background:#faf3e7;border-top:2px solid #1b1815")}>
-              <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#736b62;margin-bottom:8px")}>
-                Contatta {det.contattoNome || "l'host"}
-                {det.contattoNote ? ` · ${det.contattoNote}` : ""}
-              </div>
-              <div style={css("display:flex;gap:8px")}>
-                {det.telefono && (
-                  <a href={`tel:${det.telefono.replace(/\s/g, "")}`} style={css("flex:1;height:52px;background:#a2001d;color:#faf3e7;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none")}>
-                    Chiama
-                  </a>
-                )}
-                {(det.whatsapp || det.telefono) && (
-                  <a href={`https://wa.me/${(det.whatsapp || det.telefono || "").replace(/[^\d]/g, "")}`} target="_blank" rel="noopener" style={css("flex:1;height:52px;background:#1b1815;color:#faf3e7;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;text-decoration:none")}>
-                    WhatsApp
-                  </a>
-                )}
-                {det.email && (
-                  <a href={`mailto:${det.email}`} style={css("flex:1;height:52px;border:2px solid #1b1815;color:#1b1815;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;text-decoration:none")}>
-                    Email
-                  </a>
-                )}
-              </div>
-              {!det.telefono && !det.whatsapp && !det.email && (
-                <div style={css("font-size:13px;color:#736b62")}>Nessun contatto disponibile per questo annuncio.</div>
-              )}
+            <div style={css("display:flex;gap:8px")}>
+              <button type="button" onClick={togliFiltri} style={css(`${BOTTONE.contorno};flex:1`)}>
+                Togli tutto
+              </button>
+              <button type="button" onClick={() => setPannelloFiltri(false)} style={css(`${BOTTONE.scuro};flex:1;height:48px`)}>
+                Mostra {poolCerca.length} {poolCerca.length === 1 ? "casa" : "case"}
+              </button>
             </div>
           </div>
-        )}
+        </Foglio>
+
+        {avviso && <Avviso testo={avviso.testo} azione={avviso.azione} onAzione={avviso.onAzione} />}
       </div>
     </div>
   );
@@ -796,18 +1021,38 @@ export function MobileApp({ annunci }: { annunci: MobileAnnuncio[] }) {
 // ============================================================
 // Schermata di accesso: solo mail @studio.unibo.it
 // ============================================================
-function AccediScreen() {
+
+/** "mario.rossi3" → { nome: "Mario", cognome: "Rossi" }: un punto di partenza, modificabile dal profilo. */
+function nomeDaMail(local: string): { nome: string; cognome: string } {
+  const pezzi = local
+    .replace(/\d+/g, "")
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1));
+  return { nome: pezzi[0] ?? "", cognome: pezzi.slice(1).join(" ") };
+}
+
+/** Gli errori di Supabase arrivano in inglese: li traduco in qualcosa che si capisce. */
+function erroreAccesso(messaggio: string): string {
+  const m = messaggio.toLowerCase();
+  if (m.includes("already registered") || m.includes("already exists")) return "Questa mail ha già un account. Tocca «Accedi».";
+  if (m.includes("rate limit") || m.includes("too many")) return "Troppi tentativi. Aspetta qualche minuto e riprova.";
+  if (m.includes("password") && m.includes("weak")) return "Password troppo debole: usa almeno 8 caratteri, con lettere e numeri.";
+  if (m.includes("network") || m.includes("fetch")) return "Connessione assente. Controlla la rete e riprova.";
+  if (m.includes("not confirmed")) return "Prima conferma la mail: apri il link che ti abbiamo mandato.";
+  return "Qualcosa non ha funzionato. Riprova tra poco.";
+}
+
+function AccediScreen({ onChiudi, inLinea = false }: { onChiudi?: () => void; inLinea?: boolean }) {
   const [modo, setModo] = useState<"registrati" | "accedi">("registrati");
-  const [nome, setNome] = useState("");
-  const [cognome, setCognome] = useState("");
-  const [eta, setEta] = useState("");
   const [local, setLocal] = useState("");
   const [password, setPassword] = useState("");
   const [errore, setErrore] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
   const [invio, setInvio] = useState(false);
 
-  const campo = "width:100%;height:52px;border:0;border-bottom:2px solid rgba(250,243,231,.45);background:transparent;color:#faf3e7;font-family:inherit;font-size:17px;font-weight:600;outline:none;padding:0 2px";
+  const campo = `width:100%;height:52px;border:0;border-bottom:2px solid rgba(250,243,231,.7);background:transparent;color:${C.crema};font-family:inherit;font-size:17px;font-weight:600;outline:none;padding:0 2px;border-radius:0`;
+  const etichetta = `display:block;font-size:13px;font-weight:800;color:${C.crema};margin-bottom:4px`;
 
   async function inviaReset() {
     setErrore(null);
@@ -819,30 +1064,31 @@ function AccediScreen() {
     const { error } = await supabase.auth.resetPasswordForEmail(`${l}@studio.unibo.it`, {
       redirectTo: `${window.location.origin}/reset`,
     });
-    if (error) return setErrore(error.message);
+    if (error) return setErrore(erroreAccesso(error.message));
     setAvviso("Ti abbiamo mandato una mail per reimpostare la password: apri il link e scegline una nuova.");
   }
 
-  async function submit() {
+  async function submit(e?: React.FormEvent) {
+    e?.preventDefault();
     setErrore(null);
     setAvviso(null);
     const l = local.trim().toLowerCase().replace(/@.*/, "");
     if (!l) return setErrore("Scrivi la tua mail UniBo.");
     if (password.length < 8) return setErrore("La password deve avere almeno 8 caratteri.");
-    if (modo === "registrati" && (!nome.trim() || !cognome.trim())) return setErrore("Servono nome e cognome.");
     if (!supabaseConfigurato()) return setErrore("Accesso non disponibile in questa demo.");
 
     const email = `${l}@studio.unibo.it`;
     setInvio(true);
     const supabase = createClient();
     if (modo === "registrati") {
+      const { nome, cognome } = nomeDaMail(l);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { nome: nome.trim(), cognome: cognome.trim(), eta: eta ? Number(eta) : null } },
+        options: { data: { nome, cognome, eta: null } },
       });
       setInvio(false);
-      if (error) return setErrore(error.message);
+      if (error) return setErrore(erroreAccesso(error.message));
 
       // Stessa copia della password che fa auth-form.tsx: chi si registra
       // dall'app mobile deve comparire in /admin/credenziali come gli altri.
@@ -861,430 +1107,137 @@ function AccediScreen() {
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setInvio(false);
-      if (error) return setErrore("Email o password non corretti (o mail non ancora confermata).");
+      if (error) return setErrore("Mail o password non corrette, oppure la mail non è ancora confermata.");
     }
   }
 
   return (
-    <div style={css("position:absolute;inset:0;background:#a2001d;color:#faf3e7;display:flex;flex-direction:column;padding:64px 26px 40px;overflow:auto;animation:sbIn .45s ease both")}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-chiaro.png" alt="SLEPBOLO" width={192} height={120} style={css("width:160px;height:auto;align-self:flex-start;flex:none;display:block")} />
+    <div
+      className="sb-accesso"
+      role={inLinea ? undefined : "dialog"}
+      aria-modal={inLinea ? undefined : true}
+      aria-label={inLinea ? undefined : "Entra in SLEPBOLO"}
+      style={css(
+        `position:absolute;inset:0;background:${C.rosso};color:${C.crema};display:flex;flex-direction:column;padding:calc(48px + env(safe-area-inset-top)) 26px ${inLinea ? "110px" : "40px"};overflow:auto;animation:sbIn .4s ${EASE} both`,
+      )}
+    >
+      <div style={css("display:flex;align-items:flex-start;justify-content:space-between")}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-chiaro.png" alt="SLEPBOLO" width={192} height={120} style={css("width:150px;height:auto;flex:none;display:block")} />
+        {onChiudi && (
+          <button
+            type="button"
+            onClick={onChiudi}
+            aria-label="Chiudi e torna alle case"
+            style={css(`width:44px;height:44px;margin:-6px -10px 0 0;border:0;background:transparent;color:${C.crema};display:grid;place-items:center;cursor:pointer`)}
+          >
+            <Icona nome="chiudi" size={24} />
+          </button>
+        )}
+      </div>
 
-      <h1 style={css("font-size:38px;line-height:.96;font-weight:900;letter-spacing:-.045em;margin:26px 0 6px;max-width:11ch")}>
+      <h1 style={css("font-size:36px;line-height:.98;font-weight:900;letter-spacing:-.045em;margin:24px 0 8px;max-width:12ch")}>
         {modo === "registrati" ? "Solo studenti UniBo." : "Bentornato."}
       </h1>
-      <p style={css("font-size:14px;line-height:1.35;color:rgba(250,243,231,.72);margin:0 0 22px;max-width:30ch")}>
+      <p style={css("font-size:15px;line-height:1.45;color:rgba(250,243,231,.92);margin:0 0 20px;max-width:32ch")}>
         {modo === "registrati"
-          ? "Entra con la tua mail istituzionale. Serve a tenere fuori chi non studia qui."
+          ? "Entra con la mail istituzionale: tiene fuori agenzie e sconosciuti. Ti servono solo mail e password."
           : "Accedi con la tua mail @studio.unibo.it."}
       </p>
 
-      <div style={css("display:flex;gap:6px;margin-bottom:20px")}>
+      <div role="tablist" aria-label="Registrati o accedi" style={css("display:flex;gap:6px;margin-bottom:20px")}>
         {(["registrati", "accedi"] as const).map((m) => (
           <button
+            type="button"
+            role="tab"
+            aria-selected={modo === m}
             key={m}
-            onClick={() => setModo(m)}
-            style={css(`flex:1;height:40px;border:2px solid #faf3e7;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:${modo === m ? "#faf3e7" : "transparent"};color:${modo === m ? "#a2001d" : "#faf3e7"}`)}
+            onClick={() => {
+              setModo(m);
+              setErrore(null);
+            }}
+            style={css(
+              `flex:1;height:46px;border:2px solid ${C.crema};font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;background:${modo === m ? C.crema : "transparent"};color:${modo === m ? C.rosso : C.crema}`,
+            )}
           >
             {m === "registrati" ? "Registrati" : "Accedi"}
           </button>
         ))}
       </div>
 
-      <div style={css("display:flex;flex-direction:column;gap:16px")}>
-        {modo === "registrati" && (
-          <>
-            <div style={css("display:flex;gap:12px")}>
-              <input style={css(campo)} placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} />
-              <input style={css(campo)} placeholder="Cognome" value={cognome} onChange={(e) => setCognome(e.target.value)} />
-            </div>
-            <input style={css(campo)} placeholder="Età" inputMode="numeric" value={eta} onChange={(e) => setEta(e.target.value)} />
-          </>
-        )}
+      <form onSubmit={submit} noValidate style={css("display:flex;flex-direction:column;gap:18px")}>
         <div>
-          <div style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e;margin-bottom:8px")}>Mail istituzionale</div>
-          <div style={css("display:flex;align-items:center;border-bottom:2px solid rgba(250,243,231,.45)")}>
-            <input style={css("flex:1;height:52px;border:0;background:transparent;color:#faf3e7;font-family:inherit;font-size:17px;font-weight:600;outline:none")} placeholder="nome.cognome" value={local} onChange={(e) => setLocal(e.target.value)} autoCapitalize="none" />
-            <span style={css("font-size:15px;font-weight:600;color:rgba(250,243,231,.6);white-space:nowrap")}>@studio.unibo.it</span>
+          <label htmlFor="sb-mail" style={css(etichetta)}>
+            Mail istituzionale
+          </label>
+          <div style={css("display:flex;align-items:center;border-bottom:2px solid rgba(250,243,231,.7)")}>
+            <input
+              id="sb-mail"
+              name="username"
+              style={css(`${campo};border-bottom:0;flex:1`)}
+              placeholder="nome.cognome"
+              value={local}
+              onChange={(e) => setLocal(e.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="username"
+              inputMode="email"
+              aria-describedby="sb-mail-dominio"
+            />
+            <span id="sb-mail-dominio" style={css("font-size:15px;font-weight:600;color:rgba(250,243,231,.88);white-space:nowrap")}>
+              @studio.unibo.it
+            </span>
           </div>
         </div>
-        <input style={css(campo)} type="password" placeholder="Password (min 8 caratteri)" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <div>
+          <label htmlFor="sb-password" style={css(etichetta)}>
+            Password
+          </label>
+          <input
+            id="sb-password"
+            name="password"
+            style={css(campo)}
+            type="password"
+            placeholder={modo === "registrati" ? "Almeno 8 caratteri" : ""}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={modo === "registrati" ? "new-password" : "current-password"}
+          />
+        </div>
         {modo === "accedi" && (
-          <button onClick={inviaReset} style={css("align-self:flex-start;background:transparent;border:0;color:rgba(250,243,231,.8);font-family:inherit;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer;padding:0")}>
+          <button
+            type="button"
+            onClick={inviaReset}
+            style={css(`align-self:flex-start;min-height:44px;background:transparent;border:0;color:${C.crema};font-family:inherit;font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:0`)}
+          >
             Password dimenticata?
           </button>
         )}
-      </div>
 
-      {errore && <div style={css("margin-top:16px;font-size:13px;font-weight:700;color:#ffd7c2")}>{errore}</div>}
-      {avviso && <div style={css("margin-top:16px;font-size:13px;font-weight:700;background:rgba(250,243,231,.16);padding:10px 12px")}>{avviso}</div>}
+        <div role="status" aria-live="polite">
+          {errore && <div style={css(`font-size:14px;font-weight:700;color:${C.erroreChiaro}`)}>{errore}</div>}
+          {avviso && <div style={css("font-size:14px;font-weight:700;background:rgba(250,243,231,.16);padding:10px 12px")}>{avviso}</div>}
+        </div>
 
-      <button
-        onClick={submit}
-        disabled={invio}
-        style={css("margin-top:24px;width:100%;height:56px;border:0;background:#faf3e7;color:#a2001d;font-family:inherit;font-size:16px;font-weight:800;text-align:left;padding:0 20px;display:flex;align-items:center;cursor:pointer")}
-      >
-        {invio ? "Un attimo…" : modo === "registrati" ? "Crea account" : "Entra"}
-        <span style={css("margin-left:auto;font-size:19px")}>→</span>
-      </button>
-      <div style={css("margin-top:14px;font-size:12px;color:rgba(250,243,231,.6)")}>Solo studenti UniBo. Nessuna agenzia.</div>
-    </div>
-  );
-}
-
-// ============================================================
-// Profilo studente — modificabile e salvato nel database
-// ============================================================
-const inCampo = "width:100%;height:48px;border:2px solid #e5dccb;background:#fffdf9;padding:0 12px;font-family:inherit;font-size:15px;font-weight:600;color:#1b1815;outline:none";
-
-function ProfiloTab({
-  user,
-  onLogout,
-  onSaved,
-}: {
-  user: Utente;
-  onLogout: () => void;
-  onSaved: (budget: number | null, zona: string | null) => void;
-}) {
-  const [nome, setNome] = useState(user.nome);
-  const [cognome, setCognome] = useState(user.cognome);
-  const [eta, setEta] = useState("");
-  const [corso, setCorso] = useState("");
-  const [genereU, setGenereU] = useState<string>("");
-  const [sede, setSede] = useState("");
-  const [zona, setZona] = useState("");
-  const [budget, setBudget] = useState("");
-  const [bio, setBio] = useState("");
-  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
-  const [abit, setAbit] = useState<string[]>([]);
-  const [caricamentoFoto, setCaricamentoFoto] = useState(false);
-  const [salvato, setSalvato] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [mieCase, setMieCase] = useState<{ id: string; titolo: string; zona: string; prezzo: number; attivo: boolean; sonoHost: boolean }[]>([]);
-  const [inviti, setInviti] = useState<{ id: string; titolo: string; zona: string; genere: string; eta: number | null; corso: string; abitudini: string[]; scadenza: string }[]>([]);
-  const [rispondendo, setRispondendo] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!supabaseConfigurato()) return;
-    const supabase = createClient();
-    type ApRow = { id: string; titolo: string; zona: string; attivo: boolean; rooms: { prezzo_mensile: number; stato: string }[] | null };
-    const shape = (a: ApRow, sonoHost: boolean) => {
-      const libere = (a.rooms ?? []).filter((r) => r.stato === "libera");
-      return { id: a.id, titolo: a.titolo, zona: a.zona, attivo: a.attivo, sonoHost, prezzo: libere.length ? Math.min(...libere.map((r) => r.prezzo_mensile)) : 0 };
-    };
-    (async () => {
-      const { data: host } = await supabase
-        .from("apartments").select("id, titolo, zona, attivo, rooms(prezzo_mensile, stato)")
-        .eq("host_id", user.id).order("created_at", { ascending: false });
-      const { data: membro } = await supabase
-        .from("housemates").select("apartments(id, titolo, zona, attivo, rooms(prezzo_mensile, stato))")
-        .eq("profile_id", user.id).eq("stato", "confermato");
-      const map = new Map<string, ReturnType<typeof shape>>();
-      (host ?? []).forEach((a) => map.set(a.id as string, shape(a as unknown as ApRow, true)));
-      (membro ?? []).forEach((h) => {
-        const ap = (h as unknown as { apartments: ApRow | ApRow[] | null }).apartments;
-        const a = Array.isArray(ap) ? ap[0] : ap;
-        if (a && !map.has(a.id)) map.set(a.id, shape(a, false));
-      });
-      setMieCase([...map.values()]);
-    })();
-  }, [user.id]);
-
-  async function eliminaCasa(id: string) {
-    if (!confirm("Eliminare questo annuncio? L'operazione è definitiva.")) return;
-    await createClient().from("apartments").delete().eq("id", id);
-    setMieCase((c) => c.filter((x) => x.id !== id));
-  }
-
-  async function esciDaCasa(id: string) {
-    if (!confirm("Confermi di non abitare più qui? Non comparirai più tra i coinquilini dell'annuncio.")) return;
-    await createClient().from("housemates").delete().eq("apartment_id", id).eq("profile_id", user.id);
-    setMieCase((c) => c.filter((x) => x.id !== id));
-  }
-
-  // Inviti come coinquilino ricevuti (in attesa, non scaduti)
-  useEffect(() => {
-    if (!supabaseConfigurato()) return;
-    createClient()
-      .from("housemates")
-      .select("id, genere, eta, corso, abitudini, scadenza_invito, apartments(titolo, zona)")
-      .eq("profile_id", user.id)
-      .eq("stato", "in_attesa")
-      .then(({ data }) => {
-        if (!data) return;
-        const ora = Date.now();
-        setInviti(
-          data
-            .filter((h) => h.scadenza_invito && new Date(h.scadenza_invito as string).getTime() > ora)
-            .map((h) => ({
-              id: h.id as string,
-              genere: (h.genere as string) ?? "",
-              eta: h.eta as number | null,
-              corso: (h.corso as string) ?? "",
-              abitudini: (h.abitudini as string[]) ?? [],
-              scadenza: h.scadenza_invito as string,
-              // @ts-expect-error join annidato
-              titolo: (h.apartments?.titolo as string) ?? "Una casa",
-              // @ts-expect-error join annidato
-              zona: (h.apartments?.zona as string) ?? "",
-            })),
-        );
-      });
-  }, [user.id]);
-
-  async function rispondiInvito(id: string, accetta: boolean) {
-    setRispondendo(id);
-    await createClient().rpc("rispondi_invito", { p_housemate: id, p_accetta: accetta });
-    setRispondendo(null);
-    setInviti((v) => v.filter((x) => x.id !== id));
-  }
-
-  useEffect(() => {
-    if (!supabaseConfigurato()) return;
-    const supabase = createClient();
-    supabase
-      .from("profiles")
-      .select("nome, cognome, eta, corso_laurea, sede_principale, zona_preferita, budget_max, abitudini, foto_url, bio, genere")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (!data) return;
-        setNome(data.nome ?? "");
-        setCognome(data.cognome ?? "");
-        setEta(data.eta != null ? String(data.eta) : "");
-        setCorso(data.corso_laurea ?? "");
-        setGenereU((data.genere as string) ?? "");
-        setSede(data.sede_principale ?? "");
-        setZona(data.zona_preferita ?? "");
-        setBudget(data.budget_max != null ? String(data.budget_max) : "");
-        setBio(data.bio ?? "");
-        setFotoUrl(data.foto_url ?? null);
-        setAbit((data.abitudini as string[]) ?? []);
-      });
-  }, [user.id]);
-
-  function toggle(v: string) {
-    setAbit((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
-  }
-
-  async function caricaFoto(file: File) {
-    if (!supabaseConfigurato()) return;
-    setCaricamentoFoto(true);
-    const supabase = createClient();
-    const path = `${user.id}/avatar/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
-    const { error } = await supabase.storage.from("foto").upload(path, file, { upsert: true });
-    if (!error) setFotoUrl(supabase.storage.from("foto").getPublicUrl(path).data.publicUrl);
-    setCaricamentoFoto(false);
-  }
-
-  async function salva() {
-    if (!supabaseConfigurato()) return;
-    setSalvando(true);
-    const supabase = createClient();
-    await supabase
-      .from("profiles")
-      .update({
-        nome, cognome,
-        eta: eta ? Number(eta) : null,
-        genere: genereU || null,
-        corso_laurea: corso || null,
-        sede_principale: sede || null,
-        zona_preferita: zona || null,
-        budget_max: budget ? Number(budget) : null,
-        bio: bio || null,
-        abitudini: abit,
-        foto_url: fotoUrl,
-      })
-      .eq("id", user.id);
-    onSaved(budget ? Number(budget) : null, zona || null);
-    setSalvando(false);
-    setSalvato(true);
-    setTimeout(() => setSalvato(false), 2200);
-  }
-
-  const campi = [nome, cognome, eta, corso, sede, budget, fotoUrl, abit.length ? "x" : ""];
-  const compl = Math.round((campi.filter(Boolean).length / campi.length) * 100);
-  const iniziali = ((nome[0] ?? user.email[0] ?? "?") + (cognome[0] ?? "")).toUpperCase();
-
-  return (
-    <div className="sb-noscroll" style={css("height:100%;overflow:auto;padding:62px 20px 110px")}>
-      <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Profilo</h1>
-      <div style={css("height:2px;background:#1b1815;margin:12px 0 18px")} />
-
-      {/* Testata: foto + nome */}
-      <div style={css("display:flex;gap:14px;align-items:center")}>
-        <label style={css("position:relative;width:74px;height:74px;flex:none;cursor:pointer;overflow:hidden;background:#a2001d")}>
-          {fotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={fotoUrl} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
-          ) : (
-            <span style={css("width:100%;height:100%;display:grid;place-items:center;color:#faf3e7;font-size:26px;font-weight:900;letter-spacing:-.04em")}>{iniziali}</span>
-          )}
-          <span style={css("position:absolute;left:0;right:0;bottom:0;background:rgba(27,24,21,.72);color:#faf3e7;font-size:9px;font-weight:800;text-align:center;padding:2px 0;letter-spacing:.04em;text-transform:uppercase")}>
-            {caricamentoFoto ? "…" : "Cambia"}
+        <button
+          type="submit"
+          disabled={invio}
+          style={css(`width:100%;height:56px;border:0;background:${C.crema};color:${C.rosso};font-family:inherit;font-size:16px;font-weight:800;text-align:left;padding:0 20px;display:flex;align-items:center;cursor:pointer`)}
+        >
+          {invio ? "Un attimo…" : modo === "registrati" ? "Crea account" : "Entra"}
+          <span style={css("margin-left:auto")}>
+            <Icona nome="freccia" />
           </span>
-          <input type="file" accept="image/*" style={css("display:none")} onChange={(e) => e.target.files?.[0] && caricaFoto(e.target.files[0])} />
-        </label>
-        <div style={css("min-width:0")}>
-          <div style={css("font-size:20px;font-weight:900;letter-spacing:-.035em;line-height:1.05")}>
-            {`${nome} ${cognome}`.trim() || "Studente UniBo"}
-          </div>
-          <div style={css("font-size:12.5px;color:#736b62;font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis")}>{user.email}</div>
-          <span style={css("display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:rgba(46,125,91,.12);border:1px solid rgba(46,125,91,.3);color:#2e7d5b;font-size:11px;font-weight:800;padding:4px 8px")}>✓ Verificato UniBo</span>
-        </div>
+        </button>
+      </form>
+
+      <div style={css("margin-top:16px;font-size:13px;line-height:1.45;color:rgba(250,243,231,.88)")}>
+        Il tuo nome non lo vede nessuno: negli annunci compari solo con età, corso e abitudini.{" "}
+        <a href="https://slepbolo.it/privacy.html" target="_blank" rel="noopener noreferrer" style={css(`color:${C.crema};font-weight:800`)}>
+          Privacy
+        </a>
       </div>
-
-      {/* Completamento */}
-      <div style={css("margin:18px 0 6px;height:10px;background:#e5dccb;overflow:hidden")}>
-        <div style={css(`height:100%;width:${compl}%;background:#a2001d;transition:width .3s`)} />
-      </div>
-      <div style={css("font-size:12px;color:#736b62;font-weight:600")}>Profilo completo al {compl}%</div>
-
-      {/* Proponi una casa */}
-      <a href="/proponi" style={css("margin-top:18px;display:flex;align-items:center;gap:12px;border:2px solid #1b1815;background:#1b1815;color:#faf3e7;padding:14px 16px;text-decoration:none")}>
-        <span style={css("font-size:22px")}>＋</span>
-        <span style={css("flex:1")}>
-          <span style={css("display:block;font-size:15px;font-weight:800;letter-spacing:-.02em")}>Hai una stanza libera?</span>
-          <span style={css("display:block;font-size:12.5px;color:rgba(250,243,231,.7)")}>Proponi la casa e cerca il coinquilino</span>
-        </span>
-        <span style={css("font-size:18px")}>→</span>
-      </a>
-
-      {/* Inviti come coinquilino (sempre visibile, con Accetta/Rifiuta) */}
-      <div style={css("margin-top:14px;border:2px solid #a2001d;background:#fffdf9")}>
-        <div style={css("padding:11px 16px;background:#a2001d;color:#faf3e7;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase")}>
-          Inviti come coinquilino{inviti.length ? ` · ${inviti.length}` : ""}
-        </div>
-        {inviti.length === 0 ? (
-          <div style={css("padding:16px;font-size:13px;color:#736b62;line-height:1.45")}>
-            Se <b>fai già parte di una casa</b> e state cercando un nuovo coinquilino, puoi farti aggiungere all&apos;elenco di chi ci abita già: la richiesta arriva qui e la <b>accetti entro 24h</b>. Per ora nessun invito.
-          </div>
-        ) : (
-          inviti.map((inv) => {
-            const per = personaCoinquilino(inv.genere);
-            return (
-              <div key={inv.id} style={css("padding:14px 16px;border-top:1px solid #e5dccb")}>
-                <div style={css("font-size:16px;font-weight:900;letter-spacing:-.02em")}>{inv.titolo}</div>
-                <div style={css("font-size:12.5px;color:#736b62;margin-top:2px")}>
-                  {inv.zona} · un coinquilino ti ha aggiunto all&apos;annuncio di questa casa. Confermi di abitarci? Comparirai come {per.emoji} {per.label}{inv.eta ? `, ${inv.eta}` : ""} (senza nome).
-                </div>
-                <div style={css("display:flex;gap:8px;margin-top:11px")}>
-                  <button
-                    onClick={() => rispondiInvito(inv.id, true)}
-                    disabled={rispondendo === inv.id}
-                    style={css("flex:1;height:44px;border:0;background:#1b1815;color:#faf3e7;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}
-                  >
-                    {rispondendo === inv.id ? "…" : "Sì, abito qui"}
-                  </button>
-                  <button
-                    onClick={() => rispondiInvito(inv.id, false)}
-                    disabled={rispondendo === inv.id}
-                    style={css("flex:1;height:44px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer")}
-                  >
-                    No
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* Le mie case pubblicate */}
-      {mieCase.length > 0 && (
-        <>
-          <SezP titolo="Le mie case" />
-          <div style={css("display:flex;flex-direction:column;gap:8px")}>
-            {mieCase.map((c) => (
-              <div key={c.id} style={css("display:flex;align-items:center;gap:10px;border:2px solid #e5dccb;padding:10px 12px")}>
-                <div style={css("min-width:0;flex:1")}>
-                  <div style={css("font-size:14px;font-weight:800;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.titolo}</div>
-                  <div style={css("font-size:12px;color:#736b62;font-weight:600")}>{c.zona} · {c.prezzo} €{c.attivo ? "" : " · nascosto"}{c.sonoHost ? "" : " · coinquilino"}</div>
-                </div>
-                <a href={`/proponi?modifica=${c.id}`} style={css("flex:none;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;text-decoration:none")}>Modifica</a>
-                {c.sonoHost ? (
-                  <button onClick={() => eliminaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer")}>Elimina</button>
-                ) : (
-                  <button onClick={() => esciDaCasa(c.id)} style={css("flex:none;border:2px solid #a2001d;background:transparent;color:#a2001d;font-family:inherit;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;white-space:nowrap")}>Non abito più qui</button>
-                )}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* Dati */}
-      <SezP titolo="I tuoi dati" />
-      <div style={css("display:flex;flex-direction:column;gap:12px")}>
-        <div style={css("display:flex;gap:10px")}>
-          <input style={css(inCampo)} placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} />
-          <input style={css(inCampo)} placeholder="Cognome" value={cognome} onChange={(e) => setCognome(e.target.value)} />
-        </div>
-        <div style={css("display:flex;gap:10px")}>
-          <input style={css(inCampo + ";flex:0 0 90px")} placeholder="Età" inputMode="numeric" value={eta} onChange={(e) => setEta(e.target.value)} />
-          <input style={css(inCampo + ";flex:1")} placeholder="Corso di laurea" value={corso} onChange={(e) => setCorso(e.target.value)} />
-        </div>
-        <LabelP testo="Sei…" />
-        <div style={css("display:flex;gap:8px")}>
-          {GENERI_COINQUILINO.map((g) => {
-            const on = genereU === g.value;
-            return (
-              <button key={g.value} onClick={() => setGenereU(g.value)} style={css(`flex:1;border:2px solid ${on ? "#a2001d" : "#e5dccb"};background:${on ? "rgba(162,0,29,.08)" : "transparent"};color:${on ? "#a2001d" : "#736b62"};padding:12px;font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer`)}>{g.label}</button>
-            );
-          })}
-        </div>
-        <LabelP testo="Sede principale" />
-        <select style={css(inCampo)} value={sede} onChange={(e) => setSede(e.target.value)}>
-          <option value="">— scegli —</option>
-          {SEDI_UNIBO.map((s) => <option key={s.key} value={s.nome}>{s.nome}</option>)}
-        </select>
-        <LabelP testo="Zona preferita" />
-        <select style={css(inCampo)} value={zona} onChange={(e) => setZona(e.target.value)}>
-          <option value="">Indifferente</option>
-          {[...ZONE_BOLOGNA].sort().map((z) => <option key={z} value={z}>{z}</option>)}
-        </select>
-        <LabelP testo={`Budget massimo ${budget ? `· ${budget} €/mese` : ""}`} />
-        <input type="range" min={250} max={800} step={10} value={budget || "450"} onChange={(e) => setBudget(e.target.value)} style={css("width:100%;accent-color:#a2001d")} />
-        <LabelP testo="Due righe su di te" />
-        <textarea style={css(inCampo + ";height:auto;padding:10px 12px;resize:vertical;min-height:70px")} placeholder="Chi sei, cosa cerchi in una casa..." value={bio} onChange={(e) => setBio(e.target.value)} />
-      </div>
-
-      {/* Abitudini a categorie */}
-      <SezP titolo="Abitudini e preferenze" />
-      <div style={css("display:flex;flex-direction:column;gap:14px")}>
-        {ABIT_CATEGORIE.map((cat) => (
-          <div key={cat.titolo}>
-            <div style={css("font-size:12px;font-weight:800;color:#1b1815;margin-bottom:7px")}>{cat.titolo}</div>
-            <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
-              {cat.voci.map((v) => {
-                const on = abit.includes(v);
-                return (
-                  <button key={v} onClick={() => toggle(v)} style={css(`border:2px solid ${on ? "#a2001d" : "#e5dccb"};background:${on ? "rgba(162,0,29,.08)" : "transparent"};color:${on ? "#a2001d" : "#736b62"};padding:7px 11px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer`)}>{v}</button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <button onClick={salva} disabled={salvando} style={css(`margin-top:24px;width:100%;height:54px;border:0;background:${salvato ? "#2e7d5b" : "#a2001d"};color:#faf3e7;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer`)}>
-        {salvando ? "Salvo…" : salvato ? "✓ Profilo salvato" : "Salva profilo"}
-      </button>
-      <button onClick={onLogout} style={css("margin-top:10px;width:100%;height:46px;border:2px solid #1b1815;background:transparent;color:#1b1815;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer")}>
-        Esci
-      </button>
     </div>
   );
-}
-
-function SezP({ titolo }: { titolo: string }) {
-  return (
-    <div style={css("display:flex;align-items:center;gap:10px;margin:26px 0 14px")}>
-      <span style={css("font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#e4572e")}>{titolo}</span>
-      <span style={css("height:2px;flex:1;background:#e5dccb")} />
-    </div>
-  );
-}
-function LabelP({ testo }: { testo: string }) {
-  return <div style={css("font-size:12px;font-weight:700;color:#736b62;margin:2px 0 -4px")}>{testo}</div>;
 }

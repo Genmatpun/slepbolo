@@ -29,8 +29,15 @@ values ('00000000-0000-0000-0000-0000000000aa', 'Host', 'Demo', true)
 on conflict (id) do nothing;
 
 -- ---------- Appartamenti ----------
--- Colonne: id, titolo, zona, via, lat, lng, piano, genere, tot, occ, servizi, contratto, cauzione, descrizione
-insert into apartments (id, host_id, titolo, zona, via, lat, lng, piano, genere, camere_totali, camere_occupate, servizi, contratto_tipo, cauzione, descrizione) values
+-- Dalla migrazione 0014 la via e i contatti non stanno più su apartments ma
+-- in annunci_privati: i dati passano da una tabella temporanea e da lì
+-- finiscono ognuno al suo posto.
+-- Colonne: id, host, titolo, zona, via, lat, lng, piano, genere, tot, occ, servizi, contratto, cauzione, descrizione
+create temp table seme_case (
+  id uuid, host_id uuid, titolo text, zona text, via text, lat double precision, lng double precision,
+  piano text, genere genere_casa, tot int, occ int, servizi text[], contratto text, cauzione text, descrizione text
+);
+insert into seme_case values
 ('a0000001-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000aa','Singola in trilocale a due passi da Zamboni','Zamboni','Via Mascarella',44.4972,11.3535,'2° senza ascensore','misto',3,2,'{"Wi-Fi","Lavatrice","Arredata","Contratto registrato","Balcone"}','Registrato — studenti (3+2)','2 mensilità','Secondo piano in una traversa di via Mascarella. Cinque minuti a piedi da via Zamboni. Casa tranquilla ma non silenziosa: si cena spesso insieme.'),
 ('a0000002-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000aa','Doppia in appartamento nuovo in Bolognina','Bolognina','Via Fioravanti',44.5105,11.3448,'4° con ascensore','misto',4,2,'{"Wi-Fi","Lavatrice","Lavastoviglie","Arredata","Aria condizionata","Bici/garage","Contratto registrato"}','Registrato — transitorio','1 mensilità','Palazzina ristrutturata vicino alla stazione. Due camere ancora libere su quattro. Ottimo se studi a Terracini: dieci minuti di bici in piano.'),
 ('a0000003-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000aa','Singola solo ragazze in Santo Stefano','Santo Stefano','Via Castiglione',44.4885,11.3486,'1° senza ascensore','ragazze',3,2,'{"Wi-Fi","Lavatrice","Arredata","Balcone","Contratto registrato"}','Registrato — studenti (3+2)','2 mensilità','Zona bellissima e silenziosa sotto i portici di Castiglione. Casa ordinata, si studia molto. Cerchiamo una ragazza per almeno un anno accademico.'),
@@ -43,6 +50,18 @@ insert into apartments (id, host_id, titolo, zona, via, lat, lng, piano, genere,
 ('a0000010-0000-0000-0000-000000000010','00000000-0000-0000-0000-0000000000aa','Stanza in casa grande al Navile','Navile','Via di Corticella',44.5248,11.3520,'Piano terra con corte','misto',5,4,'{"Wi-Fi","Lavatrice","Arredata","Ammessi animali","Si può fumare","Bici/garage"}','Da concordare','Nessuna','Casa rumorosa nel senso bello: cene, gente che passa, un gatto. Ultima camera. Se cerchi silenzio assoluto non è il posto giusto.'),
 ('a0000011-0000-0000-0000-000000000011','00000000-0000-0000-0000-0000000000aa','Singola in bilocale condiviso zona Fiera','Fiera','Via Stalingrado',44.5148,11.3625,'6° con ascensore','ragazze',2,1,'{"Wi-Fi","Lavatrice","Lavastoviglie","Arredata","Aria condizionata","Balcone","Contratto registrato"}','Registrato — transitorio','1 mensilità','Solo in due in casa, quindi bagno quasi sempre libero. Palazzo moderno con portineria. Va bene per chi vuole studiare senza troppo caos.'),
 ('a0000012-0000-0000-0000-000000000012','00000000-0000-0000-0000-0000000000aa','Due camere in villetta alla Barca','Barca','Via Tolmino',44.4872,11.3025,'Villetta con giardino','misto',4,2,'{"Wi-Fi","Lavatrice","Arredata","Balcone","Ammessi animali","Bici/garage"}','Registrato — studenti (3+2)','1 mensilità','Zona residenziale, aria buona e affitti bassi. Il Treno della Barca è a due passi. Serve la bici o il 21, ma si risparmiano cento euro al mese.');
+
+insert into apartments (id, host_id, titolo, zona, lat, lng, piano, genere, camere_totali, camere_occupate, servizi, contratto_tipo, cauzione, descrizione)
+select id, host_id, titolo, zona, lat, lng, piano, genere, tot, occ, servizi, contratto, cauzione, descrizione
+from seme_case
+on conflict (id) do nothing;
+
+insert into annunci_privati (apartment_id, via, lat, lng, contatto_nome, contatto_telefono)
+select id, via, lat, lng, 'Host demo', '+39 051 000000'
+from seme_case
+on conflict (apartment_id) do nothing;
+
+drop table seme_case;
 
 -- ---------- Stanze libere ----------
 -- Una riga "libera" per ogni camera non ancora occupata, col prezzo di zona.

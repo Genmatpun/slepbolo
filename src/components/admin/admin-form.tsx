@@ -8,7 +8,7 @@ import { RoomsIndicator } from "@/components/rooms-indicator";
 import { ZONE_BOLOGNA, GENERI_CASA, TIPI_STANZA, GENERI_COINQUILINO, ABITUDINI, personaCoinquilino } from "@/lib/constants";
 import { geocodaVia } from "@/lib/geocoding";
 import { createClient } from "@/lib/supabase/client";
-import type { Annuncio } from "@/lib/types";
+import type { Annuncio, AnnuncioPrivato } from "@/lib/types";
 
 const SERVIZI = [
   "Wi-Fi", "Lavatrice", "Arredata", "Balcone", "Lavastoviglie",
@@ -19,13 +19,13 @@ const CAUZIONI = ["1 mensilità", "2 mensilità", "Nessuna"];
 
 interface Coinq { genere: string; eta: string; corso: string; abitudini: string[] }
 
-export function AdminForm({ initial }: { initial?: Annuncio }) {
+export function AdminForm({ initial, privato }: { initial?: Annuncio; privato?: AnnuncioPrivato | null }) {
   const router = useRouter();
   const room0 = initial?.rooms.find((r) => r.stato === "libera");
 
   const [titolo, setTitolo] = useState(initial?.titolo ?? "");
-  const [zona, setZona] = useState(initial?.zona ?? ZONE_BOLOGNA[0]);
-  const [via, setVia] = useState(initial?.via ?? "");
+  const [zona, setZona] = useState<string>(initial?.zona ?? ZONE_BOLOGNA[0]);
+  const [via, setVia] = useState(privato?.via ?? "");
   const [piano, setPiano] = useState(initial?.piano ?? "");
   const [genere, setGenere] = useState(initial?.genere ?? "misto");
   const [tot, setTot] = useState(initial?.camere_totali ?? 3);
@@ -46,11 +46,11 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
   );
   const [invitati, setInvitati] = useState<string[]>([]);
   const [emailC, setEmailC] = useState("");
-  const [cNome, setCNome] = useState(initial?.contatto_nome ?? "");
-  const [cTel, setCTel] = useState(initial?.contatto_telefono ?? "");
-  const [cWa, setCWa] = useState(initial?.contatto_whatsapp ?? "");
-  const [cEmail, setCEmail] = useState(initial?.contatto_email ?? "");
-  const [cNote, setCNote] = useState(initial?.contatto_note ?? "");
+  const [cNome, setCNome] = useState(privato?.contatto_nome ?? "");
+  const [cTel, setCTel] = useState(privato?.contatto_telefono ?? "");
+  const [cWa, setCWa] = useState(privato?.contatto_whatsapp ?? "");
+  const [cEmail, setCEmail] = useState(privato?.contatto_email ?? "");
+  const [cNote, setCNote] = useState(privato?.contatto_note ?? "");
   const [attivo, setAttivo] = useState(initial?.attivo ?? true);
 
   const [fotoEsistenti, setFotoEsistenti] = useState<string[]>(initial?.foto_urls ?? []);
@@ -86,14 +86,19 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
     if (!user) return setErrore("Sessione scaduta, riaccedi.");
 
     setFase("Localizzo la via…");
-    const coord = via ? await geocodaVia(via, zona) : null;
+    const viaCambiata = via.trim() !== (privato?.via ?? "");
+    const coord = via && (viaCambiata || !privato?.lat)
+      ? await geocodaVia(via, zona)
+      : privato?.lat && privato?.lng
+        ? { lat: privato.lat, lng: privato.lng }
+        : null;
 
     const payload = {
       host_id: initial?.host_id ?? user.id, // in modifica mantiene il proprietario originale
       titolo: titolo.trim(),
       descrizione,
       zona,
-      via,
+      // il database le arrotonda: in apartments non finiscono mai esatte
       lat: coord?.lat ?? initial?.lat ?? null,
       lng: coord?.lng ?? initial?.lng ?? null,
       piano,
@@ -103,12 +108,8 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
       servizi,
       contratto_tipo: contratto,
       cauzione,
-      contatto_nome: cNome || null,
-      contatto_telefono: cTel || null,
-      contatto_whatsapp: cWa || null,
-      contatto_email: cEmail || null,
-      contatto_note: cNote || null,
       attivo,
+      confermato_il: new Date().toISOString(),
     };
 
     setFase("Salvo l'annuncio…");
@@ -116,13 +117,31 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
     if (initial) {
       const { error } = await supabase.from("apartments").update(payload).eq("id", initial.id);
       if (error) return setErrore("Errore nel salvataggio: " + error.message), setFase("");
-      // ricreo stanze e SOLO i coinquilini manuali (gli invitati collegati restano)
-      await supabase.from("rooms").delete().eq("apartment_id", initial.id);
+      // rifaccio SOLO i coinquilini manuali (gli invitati collegati restano)
       await supabase.from("housemates").delete().eq("apartment_id", initial.id).is("profile_id", null);
     } else {
       const { data, error } = await supabase.from("apartments").insert(payload).select("id").single();
       if (error || !data) return setErrore("Errore nel salvataggio: " + (error?.message ?? "")), setFase("");
       aptId = data.id as string;
+    }
+
+    // Contatti, via e coordinate esatte: nella tabella protetta
+    if (aptId) {
+      const { error } = await supabase.from("annunci_privati").upsert(
+        {
+          apartment_id: aptId,
+          contatto_nome: cNome || null,
+          contatto_telefono: cTel || null,
+          contatto_whatsapp: cWa || null,
+          contatto_email: cEmail || null,
+          contatto_note: cNote || null,
+          via: via || null,
+          lat: coord?.lat ?? null,
+          lng: coord?.lng ?? null,
+        },
+        { onConflict: "apartment_id" },
+      );
+      if (error) return setErrore("Annuncio salvato, ma non i contatti: " + error.message), setFase("");
     }
 
     // Foto
@@ -139,20 +158,30 @@ export function AdminForm({ initial }: { initial?: Annuncio }) {
       await supabase.from("apartments").update({ foto_urls: fotoEsistenti }).eq("id", aptId);
     }
 
-    // Stanze libere
-    if (aptId && libere > 0) {
-      await supabase.from("rooms").insert(
-        Array.from({ length: libere }, () => ({
-          apartment_id: aptId,
-          tipo,
-          prezzo_mensile: prezzo,
-          spese_incluse: speseIncl,
-          spese_stimate: speseIncl ? null : speseStim,
-          disponibile_dal: dal,
-          permanenza_minima_mesi: permanenza,
-          stato: "libera",
-        })),
-      );
+    // Stanze libere. In modifica le stanze già "in trattativa" o "prese"
+    // restano come sono: aggiorno quelle libere, ne aggiungo o tolgo solo
+    // quante servono per arrivare al numero di camere libere indicato.
+    if (aptId) {
+      const campiStanza = {
+        tipo,
+        prezzo_mensile: prezzo,
+        spese_incluse: speseIncl,
+        spese_stimate: speseIncl ? null : speseStim,
+        disponibile_dal: dal,
+        permanenza_minima_mesi: permanenza,
+      };
+      const libereOra = (initial?.rooms ?? []).filter((r) => r.stato === "libera");
+      for (const r of libereOra.slice(0, libere)) {
+        await supabase.from("rooms").update(campiStanza).eq("id", r.id);
+      }
+      const daTogliere = libereOra.slice(libere).map((r) => r.id);
+      if (daTogliere.length) await supabase.from("rooms").delete().in("id", daTogliere);
+      const mancano = libere - Math.min(libere, libereOra.length);
+      if (mancano > 0) {
+        await supabase.from("rooms").insert(
+          Array.from({ length: mancano }, () => ({ apartment_id: aptId, ...campiStanza, stato: "libera" })),
+        );
+      }
     }
     // Coinquilini manuali
     if (aptId && coinq.length) {

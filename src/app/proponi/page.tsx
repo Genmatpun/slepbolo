@@ -1,69 +1,13 @@
-import Link from "next/link";
-import { Archivo } from "next/font/google";
-import { createClient, supabaseConfigurato } from "@/lib/supabase/server";
-import { ProponiForm } from "@/components/proponi-form";
-import { Button } from "@/components/ui/button";
-import type { Annuncio } from "@/lib/types";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Proponi una casa — SLEPBOLO" };
+// La pubblicazione ora vive dentro l'app (/app), con il percorso a passi e
+// "Incolla da WhatsApp". Questa pagina resta solo perché i link vecchi
+// (e le mail già mandate) continuino a funzionare.
 export const dynamic = "force-dynamic";
 
-const archivo = Archivo({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800", "900"], display: "swap" });
+const ID_VALIDO = /^[0-9a-f-]{36}$/i;
 
-export default async function ProponiPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ modifica?: string }>;
-}) {
+export default async function ProponiPage({ searchParams }: { searchParams: Promise<{ modifica?: string }> }) {
   const { modifica } = await searchParams;
-  let loggato = false;
-  let iniziale: Annuncio | undefined;
-
-  if (supabaseConfigurato()) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    loggato = !!user;
-
-    if (user && modifica) {
-      // Può modificare l'host oppure un coinquilino confermato della casa.
-      const { data } = await supabase
-        .from("apartments")
-        .select("*, rooms(*), housemates(*)")
-        .eq("id", modifica)
-        .single();
-      if (data) {
-        const isHost = data.host_id === user.id;
-        const isMembro = ((data.housemates ?? []) as { profile_id: string | null; stato: string }[])
-          .some((h) => h.profile_id === user.id && h.stato === "confermato");
-        if (isHost || isMembro) iniziale = data as Annuncio;
-      }
-    }
-  }
-
-  const inModifica = !!iniziale;
-
-  return (
-    <div className={archivo.className}>
-      <div className="mx-auto max-w-[760px] px-5 py-10 sm:px-6">
-        <Link href="/app" className="text-[13px] font-bold text-grigio hover:text-inchiostro">← Torna all&apos;app</Link>
-        <div className="eyebrow mt-4">{inModifica ? "Modifica annuncio" : "Hai una stanza libera?"}</div>
-        <h1 className="mt-2 text-[32px]">{inModifica ? "Modifica la tua casa" : "Proponi la tua casa"}</h1>
-        <p className="mt-2 max-w-[54ch] text-[15px] text-grigio">
-          {inModifica
-            ? "Aggiorna i dati dell'annuncio: le modifiche vanno subito online."
-            : "Compila i dati e pubblica: l'annuncio va subito online. Chi cerca ti scriverà direttamente ai tuoi contatti."}
-        </p>
-        <div className="mt-2 mb-8 h-[2px] w-full bg-inchiostro" />
-
-        {loggato ? (
-          <ProponiForm iniziale={iniziale} />
-        ) : (
-          <div className="border-2 border-linea p-8 text-center">
-            <p className="text-[15px] text-grigio">Per proporre una casa devi prima accedere con la tua mail UniBo.</p>
-            <Button asChild className="mt-4"><Link href="/app">Vai all&apos;accesso</Link></Button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  redirect(modifica && ID_VALIDO.test(modifica) ? `/app?modifica=${modifica}` : "/app?pubblica=1");
 }

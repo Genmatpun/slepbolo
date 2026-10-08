@@ -3,14 +3,14 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { MobileAnnuncio } from "./mobile-app";
+import type { MobileAnnuncio } from "@/lib/annuncio-mobile";
+import { SEDI_UNIBO } from "@/lib/constants";
+import { PALETTE } from "./stile";
 
-const SEDI = [
-  { nome: "Zamboni", lat: 44.4967, lng: 11.3518 },
-  { nome: "Terracini", lat: 44.5215, lng: 11.3289 },
-  { nome: "Sant'Orsola", lat: 44.488, lng: 11.362 },
-  { nome: "Agraria", lat: 44.4995, lng: 11.352 },
-];
+// Le coordinate pubbliche sono già arrotondate dal database a una griglia
+// di circa 280 × 280 m: il cerchio copre tutta la cella, così non suggerisce
+// un punto preciso che non c'è.
+const RAGGIO_AREA_M = 220;
 
 /** Anello (poligono) di un cerchio di raggio rM metri attorno a un punto. */
 function anelloCerchio(lng: number, lat: number, rM: number, n = 40): [number, number][] {
@@ -82,7 +82,7 @@ export function MappaBologna({
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    // Aree approssimative (cerchio ~150 m sulla via) — posizione non esatta per privacy
+    // Aree approssimate: posizione non esatta, per privacy
     const fc: GeoJSON.FeatureCollection = {
       type: "FeatureCollection",
       features: annunci
@@ -90,7 +90,7 @@ export function MappaBologna({
         .map((a) => ({
           type: "Feature",
           properties: { id: a.id },
-          geometry: { type: "Polygon", coordinates: [anelloCerchio(a.lng as number, a.lat as number, 150)] },
+          geometry: { type: "Polygon", coordinates: [anelloCerchio(a.lng as number, a.lat as number, RAGGIO_AREA_M)] },
         })),
     };
     const applyAree = () => {
@@ -99,18 +99,20 @@ export function MappaBologna({
         src.setData(fc);
       } else {
         map.addSource("aree", { type: "geojson", data: fc });
-        map.addLayer({ id: "aree-fill", type: "fill", source: "aree", paint: { "fill-color": "#a2001d", "fill-opacity": 0.12 } });
-        map.addLayer({ id: "aree-line", type: "line", source: "aree", paint: { "line-color": "#a2001d", "line-width": 1.5, "line-opacity": 0.4 } });
+        map.addLayer({ id: "aree-fill", type: "fill", source: "aree", paint: { "fill-color": PALETTE.rosso, "fill-opacity": 0.12 } });
+        map.addLayer({ id: "aree-line", type: "line", source: "aree", paint: { "line-color": PALETTE.rosso, "line-width": 1.5, "line-opacity": 0.4 } });
       }
     };
     if (map.isStyleLoaded()) applyAree();
     else map.once("load", applyAree);
 
-    for (const s of SEDI) {
+    for (const s of SEDI_UNIBO) {
       const el = document.createElement("div");
       el.title = s.nome;
+      el.setAttribute("role", "img");
+      el.setAttribute("aria-label", `Sede UniBo: ${s.nome}`);
       el.style.cssText =
-        "width:12px;height:12px;background:#2E5FA3;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);border-radius:99px";
+        `width:12px;height:12px;background:${PALETTE.sede};border:2px solid ${PALETTE.carta};box-shadow:0 2px 6px rgba(0,0,0,.35);border-radius:99px`;
       markersRef.current.push(new maplibregl.Marker({ element: el }).setLngLat([s.lng, s.lat]).addTo(map));
     }
 
@@ -118,8 +120,11 @@ export function MappaBologna({
       if (!a.lat || !a.lng) return;
       const on = a.id === selId;
       const el = document.createElement("button");
+      el.type = "button";
       el.textContent = `${a.prezzo}€`;
-      el.style.cssText = `font-family:Archivo,system-ui,sans-serif;font-size:12px;font-weight:800;padding:4px 8px;border:2px solid #1b1815;cursor:pointer;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.2);background:${on ? "#a2001d" : "#fffdf9"};color:${on ? "#faf3e7" : "#1b1815"};z-index:${on ? 30 : 10}`;
+      el.setAttribute("aria-label", `${a.titolo}, ${a.prezzo} euro al mese`);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+      el.style.cssText = `font-family:Archivo,system-ui,sans-serif;font-size:13px;font-weight:800;min-height:32px;padding:4px 9px;border:2px solid ${PALETTE.ink};cursor:pointer;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.2);background:${on ? PALETTE.rosso : PALETTE.carta};color:${on ? PALETTE.crema : PALETTE.ink};z-index:${on ? 30 : 10}`;
       el.onclick = (e) => {
         e.stopPropagation();
         onSelect(i);

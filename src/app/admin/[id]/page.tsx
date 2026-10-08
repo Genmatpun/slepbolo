@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import { AdminForm } from "@/components/admin/admin-form";
-import type { Annuncio } from "@/lib/types";
+import type { Annuncio, AnnuncioPrivato } from "@/lib/types";
 
 export const metadata = { title: "Modifica appartamento — Admin" };
 export const dynamic = "force-dynamic";
@@ -14,11 +14,11 @@ export default async function ModificaPage({ params }: { params: Promise<{ id: s
 
   const { id } = await params;
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("apartments")
-    .select("*, rooms(*), housemates(*)")
-    .eq("id", id)
-    .single();
+  const [{ data }, { data: privato }] = await Promise.all([
+    supabase.from("apartments").select("*, rooms(*), housemates(*)").eq("id", id).single(),
+    // contatti e via: l'admin li legge grazie alla regola is_admin() della tabella
+    supabase.from("annunci_privati").select("*").eq("apartment_id", id).maybeSingle(),
+  ]);
   if (!data) notFound();
 
   return (
@@ -28,7 +28,7 @@ export default async function ModificaPage({ params }: { params: Promise<{ id: s
       </Link>
       <h1 className="mt-3 text-[32px]">Modifica appartamento</h1>
       <div className="mt-2 mb-8 h-[2px] w-full bg-inchiostro" />
-      <AdminForm initial={data as Annuncio} />
+      <AdminForm initial={data as Annuncio} privato={privato as AnnuncioPrivato | null} />
     </div>
   );
 }

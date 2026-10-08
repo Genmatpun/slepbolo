@@ -52,6 +52,9 @@ const DEMO_ABIT: string[][] = [
   ["Non fumo", "Ho un animale"],
 ];
 
+// Le case demo risultano sempre appena confermate: non devono scadere.
+const ORA = new Date().toISOString();
+
 export const DEMO_ANNUNCI: Annuncio[] = SPECS.map((s) => {
   const libere = s.tot - s.occ;
   return {
@@ -60,35 +63,42 @@ export const DEMO_ANNUNCI: Annuncio[] = SPECS.map((s) => {
     titolo: s.titolo,
     descrizione: s.descrizione,
     zona: s.zona,
-    via: s.via,
+    // La via resta nella specifica (serve al seed SQL), ma non è pubblica.
     lat: s.lat,
     lng: s.lng,
     piano: s.piano,
     genere: s.genere,
     camere_totali: s.tot,
     camere_occupate: s.occ,
+    bagni: null,
     servizi: s.servizi,
     regole: [],
+    preferenze: [],
+    vicino_a: null,
     contratto_tipo: s.contratto,
+    tramite_agenzia: false,
     cauzione: s.cauzione,
-    contatto_nome: "Host demo",
-    contatto_telefono: "+39 051 000000",
-    contatto_whatsapp: null,
-    contatto_email: null,
-    contatto_note: null,
     foto_urls: [],
+    link_foto: null,
     attivo: true,
     created_at: "2026-08-01T00:00:00Z",
+    aggiornato_il: ORA,
+    confermato_il: ORA,
     rooms: Array.from({ length: libere }, (_, i) => ({
       id: `${s.id}-r${i}`,
       apartment_id: s.id,
       tipo: s.tipo,
+      posti_liberi: 1,
       prezzo_mensile: s.prezzo,
       spese_incluse: s.speseIncl,
       spese_stimate: s.speseStim,
+      spese_comprendono: [],
       disponibile_dal: s.dal,
+      disponibile_fino: null,
       permanenza_minima_mesi: s.minMesi,
+      nota: null,
       stato: "libera" as const,
+      aggiornato_il: ORA,
     })),
     housemates: s.coinq.map((c, i) => ({
       id: `${s.id}-h${i}`,

@@ -153,7 +153,7 @@ export interface Cerco {
 // ---------- Ciclo di vita ----------
 
 /** Dopo quanti giorni senza conferma un annuncio sparisce dalla ricerca. */
-export const GIORNI_VALIDITA = 14;
+export const GIORNI_VALIDITA = 30;
 
 const GIORNO_MS = 86_400_000;
 

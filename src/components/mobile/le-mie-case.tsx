@@ -12,7 +12,7 @@ import { Foglio, Freschezza, Icona, Segmenti } from "./ui";
 //
 // Qui chi affitta tiene l'annuncio vero: segna ogni stanza come libera,
 // in trattativa o presa con un tocco, e conferma "è ancora libera".
-// Un annuncio non confermato da 14 giorni sparisce dalla ricerca: resta
+// Un annuncio non confermato da 30 giorni sparisce dalla ricerca: resta
 // qui, e un tocco lo rimette online.
 // ============================================================
 
@@ -222,7 +222,7 @@ export function LeMieCase({
                 {!c.attivo
                   ? "Nascosto: nessuno lo vede nella ricerca."
                   : scaduto
-                    ? "Non confermato da più di 14 giorni: è sparito dalla ricerca. Se è ancora libera, confermalo."
+                    ? "Non confermato da più di 30 giorni: è sparito dalla ricerca. Se è ancora libera, confermalo."
                     : restano === 0
                       ? "Sparisce dalla ricerca oggi se non lo confermi."
                       : `Sparisce dalla ricerca tra ${restano} ${restano === 1 ? "giorno" : "giorni"} se non lo confermi.`}

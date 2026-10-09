@@ -531,7 +531,7 @@ export function Pubblica({
           </h2>
           <p style={css(`margin:0;font-size:15.5px;line-height:1.5;color:${C.testo}`)}>
             Chi cerca casa lo vede da subito. <b>Ogni tanto conferma che è ancora libera</b> da &laquo;Le mie case&raquo;:
-            un annuncio non confermato da 14 giorni sparisce dalla ricerca, così nessuno ti scrive per una stanza già presa.
+            un annuncio non confermato da 30 giorni sparisce dalla ricerca, così nessuno ti scrive per una stanza già presa.
           </p>
           {fatto.nonIscritti.length > 0 && (
             <div style={css(`border:2px solid ${C.ambra};background:${C.ambraFondo};color:${C.ambraTesto};padding:12px 14px;font-size:14px;line-height:1.45`)}>

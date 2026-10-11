@@ -37,7 +37,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Params 
     ? `Ci abitano: ${m.coinq.map((c) => [c.g === "ragazza" ? "ragazza" : c.g === "ragazzo" ? "ragazzo" : "persona", c.e].filter(Boolean).join(" ")).join(", ")}.`
     : "";
   const titolo = `${m.tipo} in ${m.zona} · ${m.prezzo} €/mese`;
-  const descrizione = [chi, "Solo studenti UniBo, gratis, senza agenzie."].filter(Boolean).join(" ");
+  const descrizione = [chi, "Gratis, tra studenti UniBo."].filter(Boolean).join(" ");
   return {
     title: `${titolo} — SLEPBOLO`,
     description: descrizione,

@@ -5,7 +5,7 @@ import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 import { ANNI_CORSO, ZONE_BOLOGNA } from "@/lib/constants";
 import { giorniDa, quandoAggiornato, type Cerco } from "@/lib/types";
 import { BOTTONE, C, CAMPO, EASE, css, dataBreve, euro } from "./stile";
-import { Campo, CampoTesto, Chip, Freschezza, Icona, Segmenti } from "./ui";
+import { Campo, CampoTesto, Chip, Foglio, Freschezza, Icona, Segmenti, useSchermo } from "./ui";
 import { numeroWhatsApp } from "./contatti";
 
 // ============================================================
@@ -108,7 +108,7 @@ export function BachecaCerco({
       </div>
 
       {voci.length === 0 ? (
-        <div style={css(`margin:0 20px;border:2px dashed ${C.linea};padding:22px 18px;font-size:14.5px;color:${C.grigio};line-height:1.45`)}>
+        <div style={css(`margin:0 20px;border:2px dashed ${C.bordo};padding:22px 18px;font-size:14.5px;color:${C.grigio};line-height:1.45`)}>
           Per ora nessuno ha pubblicato. Se cerchi stanza, sii il primo: chi affitta passa da qui.
         </div>
       ) : (
@@ -149,7 +149,7 @@ export function BachecaCerco({
                     style={css(`${BOTTONE.piccolo};margin-left:auto;display:flex;align-items:center;gap:6px;text-decoration:none;background:${C.ink};color:${C.crema}`)}
                   >
                     <Icona nome="chat" size={16} />
-                    Scrivigli
+                    Scrivi a {v.nome}
                   </a>
                 ) : (
                   <span style={css("margin-left:auto;font-size:13.5px;font-weight:800")}>{v.contatto}</span>
@@ -169,7 +169,9 @@ function Etichetta({ children }: { children: React.ReactNode }) {
 
 // ---------- il mio annuncio ----------
 
-export function IlMioCerco({ userId, onChiudi }: { userId: string; onChiudi: () => void }) {
+export function IlMioCerco({ userId, onChiudi, onTolto }: { userId: string; onChiudi: () => void; onTolto?: () => void }) {
+  const schermo = useSchermo(true, onChiudi);
+  const [conferma, setConferma] = useState(false);
   const [carico, setCarico] = useState(true);
   const [esiste, setEsiste] = useState(false);
   const [nome, setNome] = useState("");
@@ -272,6 +274,7 @@ export function IlMioCerco({ userId, onChiudi }: { userId: string; onChiudi: () 
   }
 
   async function togli() {
+    setConferma(false);
     setFase("invio");
     const { error } = await createClient().from("cerco").delete().eq("profile_id", userId);
     if (error) {
@@ -279,15 +282,18 @@ export function IlMioCerco({ userId, onChiudi }: { userId: string; onChiudi: () 
       setFase("errore");
       return;
     }
+    onTolto?.();
     onChiudi();
   }
 
   return (
     <div
+      ref={schermo}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label="Il tuo annuncio Cerco stanza"
-      style={css(`position:absolute;inset:0;z-index:80;background:${C.crema};display:flex;flex-direction:column;animation:sbSlide .32s ${EASE} both`)}
+      style={css(`position:absolute;inset:0;z-index:80;background:${C.crema};display:flex;flex-direction:column;outline:none;animation:sbSlide .32s ${EASE} both`)}
     >
       <div style={css(`display:flex;align-items:center;gap:8px;padding:calc(12px + env(safe-area-inset-top)) 12px 12px;border-bottom:2px solid ${C.ink}`)}>
         <button type="button" onClick={onChiudi} aria-label="Chiudi" style={css(`width:44px;height:44px;border:0;background:transparent;color:${C.ink};display:grid;place-items:center;cursor:pointer`)}>
@@ -336,7 +342,7 @@ export function IlMioCerco({ userId, onChiudi }: { userId: string; onChiudi: () 
               </select>
             )}
           </Campo>
-          <label style={css(`display:flex;align-items:center;gap:12px;min-height:48px;border:2px solid ${lavoratore ? C.rosso : C.linea};padding:0 14px;cursor:pointer;font-size:15px;font-weight:700`)}>
+          <label style={css(`display:flex;align-items:center;gap:12px;min-height:48px;border:2px solid ${lavoratore ? C.rosso : C.bordo};padding:0 14px;cursor:pointer;font-size:15px;font-weight:700`)}>
             <input type="checkbox" checked={lavoratore} onChange={(e) => setLavoratore(e.target.checked)} style={css(`width:20px;height:20px;accent-color:${C.rosso}`)} />
             Sono anche studente-lavoratore
           </label>
@@ -379,12 +385,33 @@ export function IlMioCerco({ userId, onChiudi }: { userId: string; onChiudi: () 
             {fase === "invio" ? "Un attimo…" : esiste ? "Aggiorna e tieni online" : "Pubblica"}
           </button>
           {esiste && (
-            <button type="button" onClick={togli} disabled={fase === "invio"} style={css(`${BOTTONE.contorno};width:100%`)}>
+            <button type="button" onClick={() => setConferma(true)} disabled={fase === "invio"} style={css(`${BOTTONE.contorno};width:100%`)}>
               Ho trovato casa: togli l&apos;annuncio
             </button>
           )}
         </div>
       )}
+
+      {/* togliere è definitivo: si chiede una volta, con le azioni scritte sui pulsanti */}
+      <Foglio
+        aperto={conferma}
+        onChiudi={() => setConferma(false)}
+        titolo="Hai trovato casa?"
+        piede={
+          <div style={css("display:flex;gap:8px")}>
+            <button type="button" onClick={() => setConferma(false)} style={css(`${BOTTONE.contorno};flex:1`)}>
+              Lo tengo
+            </button>
+            <button type="button" onClick={togli} style={css(`${BOTTONE.pieno};flex:1.3;height:48px`)}>
+              Sì, toglilo
+            </button>
+          </div>
+        }
+      >
+        <p style={css(`margin:0;font-size:15px;line-height:1.5;color:${C.testo}`)}>
+          Togliamo il tuo annuncio dalla bacheca, così nessuno ti scrive più. Se ti serve ancora, lo ripubblichi in un minuto.
+        </p>
+      </Foglio>
     </div>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { MobileAnnuncio, MobileStanza } from "@/lib/annuncio-mobile";
 import { SEDI_UNIBO, etichettaPreferenza, personaCoinquilino, tempiVersoSede } from "@/lib/constants";
 import { giorniDa, quandoAggiornato } from "@/lib/types";
 import { C, EASE, SFONDI_CASA, css, dataBreve, euro } from "./stile";
-import { Freschezza, Icona, Sezione } from "./ui";
-import { Contatti, Segnala } from "./contatti";
+import { Foglio, Freschezza, Icona, Sezione, useSchermo } from "./ui";
+import { ConsigliPagamento, Contatti, Segnala } from "./contatti";
+import { Glossario } from "./glossario";
 import { Quadratini, etichettaCamere, etichettaGenereCasa } from "./pezzi";
 
 // ============================================================
@@ -47,6 +48,8 @@ export function Dettaglio({
   onAccedi,
   sedeUtente,
   onAvviso,
+  contattataIl,
+  onContattata,
 }: {
   a: MobileAnnuncio;
   salvata: boolean;
@@ -56,8 +59,21 @@ export function Dettaglio({
   onAccedi: () => void;
   sedeUtente: string | null;
   onAvviso: (testo: string) => void;
+  /** quando l'utente ha già scritto a chi affitta questa casa (data ISO), se l'ha fatto */
+  contattataIl: string | null;
+  onContattata: () => void;
 }) {
   const [descrizioneAperta, setDescrizioneAperta] = useState(false);
+  const [parole, setParole] = useState(false);
+  const [giaPresa, setGiaPresa] = useState(0);
+  // oltre la foto: la barra in alto prende lo sfondo e mostra zona e prezzo
+  const [oltre, setOltre] = useState(false);
+  const schermo = useSchermo(true, onChiudi);
+  const striscia = useRef<HTMLDivElement>(null);
+  const scorriFoto = (verso: 1 | -1) => {
+    const el = striscia.current;
+    if (el) el.scrollBy({ left: verso * el.clientWidth, behavior: "smooth" });
+  };
 
   const distanze = useMemo(() => {
     const tutte = SEDI_UNIBO.map((s) => ({ ...s, ...tempiVersoSede(a, s) })).sort((x, y) => x.km - y.km);
@@ -101,20 +117,60 @@ export function Dettaglio({
     }
   }
 
-  const tondo = `width:44px;height:44px;border:0;background:${C.crema};color:${C.ink};display:grid;place-items:center;cursor:pointer`;
+  const tondo = `width:44px;height:44px;flex:none;border:0;background:${C.crema};color:${C.ink};display:grid;place-items:center;cursor:pointer`;
+  const frecciaFoto = `position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;background:rgba(27,24,21,.72);color:${C.crema};cursor:pointer;display:grid;place-items:center`;
+  // senza foto la copertina è una fascia: il contenuto vero arriva prima
+  const altezzaFoto = a.foto.length ? 270 : 150;
 
   return (
     <div
+      ref={schermo}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={a.titolo}
-      style={css(`position:absolute;inset:0;background:${C.crema};z-index:70;display:flex;flex-direction:column;animation:sbSlide .34s ${EASE} both`)}
+      style={css(`position:absolute;inset:0;background:${C.crema};z-index:70;display:flex;flex-direction:column;outline:none;animation:sbSlide .34s ${EASE} both`)}
     >
-      <div className="sb-noscroll" style={css("flex:1;overflow:auto")}>
+      <div
+        className="sb-noscroll"
+        onScroll={(e) => setOltre(e.currentTarget.scrollTop > altezzaFoto - 70)}
+        style={css("flex:1;overflow:auto;overscroll-behavior:contain")}
+      >
+        {/* Indietro, Condividi e Salva restano in alto anche scorrendo: l'uscita c'è sempre */}
+        <div style={css("position:sticky;top:0;height:0;z-index:5")}>
+          <div
+            style={css(
+              `position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;background:${oltre ? C.crema : "transparent"};border-bottom:2px solid ${oltre ? C.ink : "transparent"};transition:background .2s,border-color .2s`,
+            )}
+          >
+            <button type="button" onClick={onChiudi} aria-label="Torna indietro" style={css(tondo)}>
+              <Icona nome="indietro" />
+            </button>
+            <div aria-hidden={!oltre} style={css(`flex:1;min-width:0;opacity:${oltre ? 1 : 0};transition:opacity .2s`)}>
+              <div style={css(`font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${C.arancioTesto};white-space:nowrap;overflow:hidden;text-overflow:ellipsis`)}>{a.zona}</div>
+              <div style={css("font-size:16px;font-weight:900;letter-spacing:-.02em;line-height:1.1;white-space:nowrap")}>{euro(a.prezzo)} al mese</div>
+            </div>
+            <button type="button" onClick={condividi} aria-label="Condividi questa casa" style={css(tondo)}>
+              <Icona nome="condividi" />
+            </button>
+            <button
+              type="button"
+              onClick={onSalva}
+              aria-pressed={salvata}
+              style={css(
+                `height:44px;flex:none;padding:0 14px;border:0;background:${salvata ? C.verde : oltre ? C.ink : C.crema};color:${salvata || oltre ? C.crema : C.ink};font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .2s`,
+              )}
+            >
+              {salvata ? <Icona nome="check" size={18} /> : null}
+              {salvata ? "Salvata" : "Salva"}
+            </button>
+          </div>
+        </div>
+
         {/* foto */}
-        <div style={css("position:relative;height:270px")}>
+        <div style={css(`position:relative;height:${altezzaFoto}px`)}>
           {a.foto.length ? (
-            <div className="sb-noscroll" style={css("display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory")}>
+            <div ref={striscia} className="sb-noscroll" style={css("display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory")}>
               {a.foto.map((u, k) => (
                 <div
                   key={k}
@@ -125,35 +181,25 @@ export function Dettaglio({
               ))}
             </div>
           ) : (
-            <div style={css(`height:100%;display:grid;place-items:center;background:${sfondoCasa(a.id)}`)}>
-              <span aria-hidden style={css("font-size:96px;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.2)")}>
+            <div style={css(`height:100%;display:grid;place-items:center;overflow:hidden;background:${sfondoCasa(a.id)}`)}>
+              <span aria-hidden style={css("font-size:84px;line-height:1;font-weight:900;letter-spacing:-.08em;color:rgba(255,255,255,.2)")}>
                 {a.zona.slice(0, 3).toUpperCase()}
               </span>
             </div>
           )}
-          <div style={css("position:absolute;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));display:flex;gap:8px")}>
-            <button type="button" onClick={onChiudi} aria-label="Torna indietro" style={css(tondo)}>
-              <Icona nome="indietro" />
-            </button>
-            <span style={css("flex:1")} />
-            <button type="button" onClick={condividi} aria-label="Condividi questa casa" style={css(tondo)}>
-              <Icona nome="condividi" />
-            </button>
-            <button
-              type="button"
-              onClick={onSalva}
-              aria-pressed={salvata}
-              style={css(
-                `height:44px;padding:0 14px;border:0;background:${salvata ? C.verde : C.crema};color:${salvata ? C.crema : C.ink};font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .2s`,
-              )}
-            >
-              {salvata ? <Icona nome="check" size={18} /> : null}
-              {salvata ? "Salvata" : "Salva"}
-            </button>
-          </div>
+          {a.foto.length > 1 && (
+            <>
+              <button type="button" onClick={() => scorriFoto(-1)} aria-label="Foto precedente" style={css(`${frecciaFoto};left:10px`)}>
+                <Icona nome="indietro" />
+              </button>
+              <button type="button" onClick={() => scorriFoto(1)} aria-label="Foto successiva" style={css(`${frecciaFoto};right:10px`)}>
+                <Icona nome="avanti" />
+              </button>
+            </>
+          )}
           {a.foto.length > 1 && (
             <span style={css(`position:absolute;right:16px;bottom:16px;background:rgba(27,24,21,.78);color:${C.crema};padding:6px 10px;font-size:12px;font-weight:800`)}>
-              {a.foto.length} foto · scorri
+              {a.foto.length} foto
             </span>
           )}
           <span style={css(`position:absolute;left:16px;bottom:16px;background:${C.crema};padding:6px 11px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase`)}>
@@ -220,6 +266,19 @@ export function Dettaglio({
               </>
             )}
           </dl>
+
+          {/* le due cose da sapere prima di scrivere: le parole del contratto e come non farsi truffare */}
+          <div style={css("display:flex;flex-direction:column;align-items:flex-start;margin-top:10px")}>
+            <button
+              type="button"
+              onClick={() => setParole(true)}
+              style={css(`min-height:44px;border:0;background:transparent;color:${C.ink};font-family:inherit;font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:8px;padding:0;cursor:pointer;text-align:left`)}
+            >
+              <Icona nome="domanda" size={18} />
+              <span style={css("text-decoration:underline;text-underline-offset:3px")}>Contratto e caparra: cosa vogliono dire</span>
+            </button>
+            <ConsigliPagamento />
+          </div>
         </div>
 
         {/* stanze */}
@@ -404,11 +463,22 @@ export function Dettaglio({
         )}
 
         <div style={css("padding:12px 20px 28px")}>
-          <Segnala apartmentId={a.id} loggato={loggato} onAccedi={onAccedi} />
+          <Segnala apartmentId={a.id} loggato={loggato} onAccedi={onAccedi} giaPresa={giaPresa} />
         </div>
       </div>
 
-      <Contatti annuncio={a} loggato={loggato} onAccedi={onAccedi} />
+      <Contatti
+        annuncio={a}
+        loggato={loggato}
+        onAccedi={onAccedi}
+        contattataIl={contattataIl}
+        onContattata={onContattata}
+        onGiaPresa={() => setGiaPresa((n) => n + 1)}
+      />
+
+      <Foglio aperto={parole} onChiudi={() => setParole(false)} titolo="Le parole degli affitti">
+        <Glossario contratto={a.contratto} />
+      </Foglio>
     </div>
   );
 }

@@ -14,6 +14,8 @@ export const PALETTE = {
   grigio: "#736b62",
   spento: "#cfc5b4",
   linea: "#e5dccb",
+  /** Bordo di campi e scelte: più scuro dei filetti, perché deve vedersi (3:1 su crema e carta). */
+  bordo: "#8f8577",
   sabbia: "#f0e7d6",
   crema: "#faf3e7",
   carta: "#fffdf9",
@@ -75,8 +77,8 @@ export function css(s: string): CSSProperties {
   return o as CSSProperties;
 }
 
-/** Campo di testo standard, su fondo chiaro. */
-export const CAMPO = `width:100%;height:48px;border:2px solid ${C.linea};background:${C.carta};padding:0 12px;font-family:inherit;font-size:16px;font-weight:600;color:${C.ink};outline:none;border-radius:0`;
+/** Campo di testo standard, su fondo chiaro. Il contorno del focus lo mette l'app (:focus-visible). */
+export const CAMPO = `width:100%;height:48px;border:2px solid ${C.bordo};background:${C.carta};padding:0 12px;font-family:inherit;font-size:16px;font-weight:600;color:${C.ink};border-radius:0`;
 
 /** Bottoni: pieno, contorno, scuro. Sempre almeno 44px di altezza. */
 export const BOTTONE = {

@@ -22,7 +22,7 @@ export interface Utente {
   cognome: string;
 }
 
-/** Preferenze che filtrano Scopri. */
+/** Preferenze del profilo: in Scopri mettono in cima le case giuste, senza nascondere le altre. */
 export interface Preferenze {
   budget: number | null;
   zone: string[];
@@ -49,6 +49,7 @@ export function ProfiloTab({
   onModifica,
   onCambiato,
   onCerco,
+  onAiuto,
 }: {
   user: Utente;
   onLogout: () => void;
@@ -57,6 +58,7 @@ export function ProfiloTab({
   onModifica: (id: string) => void;
   onCambiato: () => void;
   onCerco: () => void;
+  onAiuto: () => void;
 }) {
   const [nome, setNome] = useState(user.nome);
   const [cognome, setCognome] = useState(user.cognome);
@@ -77,6 +79,7 @@ export function ProfiloTab({
   const [caricato, setCaricato] = useState(false);
   const [erroreCarico, setErroreCarico] = useState(false);
   const [caricamentoFoto, setCaricamentoFoto] = useState(false);
+  const [erroreFoto, setErroreFoto] = useState(false);
   const [esito, setEsito] = useState<"" | "salvo" | "ok" | "errore">("");
   const [scegliZone, setScegliZone] = useState(false);
   const [scegliAbit, setScegliAbit] = useState(false);
@@ -160,10 +163,12 @@ export function ProfiloTab({
   async function caricaFoto(file: File) {
     if (!supabaseConfigurato()) return;
     setCaricamentoFoto(true);
+    setErroreFoto(false);
     const supabase = createClient();
     const path = `${user.id}/avatar/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
     const { error } = await supabase.storage.from("foto").upload(path, file, { upsert: true });
-    if (!error) setFotoUrl(supabase.storage.from("foto").getPublicUrl(path).data.publicUrl);
+    if (error) setErroreFoto(true);
+    else setFotoUrl(supabase.storage.from("foto").getPublicUrl(path).data.publicUrl);
     setCaricamentoFoto(false);
   }
 
@@ -214,7 +219,7 @@ export function ProfiloTab({
   const etaNonValida = !!eta && (!/^\d+$/.test(eta) || Number(eta) < 16 || Number(eta) > 99);
 
   return (
-    <div className="sb-noscroll" style={css("height:100%;overflow:auto;padding:calc(56px + env(safe-area-inset-top)) 20px 120px")}>
+    <div className="sb-noscroll" style={css("height:100%;overflow:auto;overscroll-behavior:contain;padding:calc(28px + env(safe-area-inset-top)) 20px calc(120px + env(safe-area-inset-bottom))")}>
       <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Profilo</h1>
       <div style={css(`height:2px;background:${C.ink};margin:12px 0 18px`)} />
 
@@ -251,6 +256,11 @@ export function ProfiloTab({
           </span>
         </div>
       </div>
+      {erroreFoto && (
+        <div role="alert" style={css(`margin-top:10px;font-size:14px;font-weight:700;color:${C.rosso}`)}>
+          Non sono riuscito a caricare la foto. Controlla la connessione e riprova.
+        </div>
+      )}
 
       {/* inviti: solo se ce ne sono */}
       {inviti.length > 0 && (
@@ -301,7 +311,7 @@ export function ProfiloTab({
         <Icona nome="persona" size={22} />
         <span style={css("flex:1")}>
           <span style={css("display:block;font-size:15px;font-weight:800")}>Il tuo annuncio &laquo;Cerco stanza&raquo;</span>
-          <span style={css(`display:block;font-size:13px;color:${C.grigio}`)}>Fatti trovare da chi ha una stanza libera</span>
+          <span style={css(`display:block;font-size:13px;color:${C.grigio}`)}>Scrivi cosa cerchi: zona, budget, da quando</span>
         </span>
         <Icona nome="freccia" />
       </button>
@@ -317,7 +327,7 @@ export function ProfiloTab({
         <div aria-busy="true" style={css(`font-size:14px;color:${C.grigio}`)}>Carico…</div>
       ) : (
         <div style={css("display:flex;flex-direction:column;gap:14px")}>
-          <div style={css(`font-size:13.5px;color:${C.grigio};line-height:1.4;background:${C.sabbia};padding:10px 12px`)}>
+          <div style={css(`font-size:13.5px;color:${C.testo};line-height:1.4;background:${C.sabbia};padding:10px 12px`)}>
             Nome e cognome li vedi solo tu. Negli annunci compari senza nome, solo con età, corso e abitudini.
           </div>
           <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:10px")}>
@@ -349,7 +359,7 @@ export function ProfiloTab({
             )}
           </Campo>
 
-          <label style={css(`display:flex;align-items:center;gap:12px;min-height:48px;border:2px solid ${lavoratore ? C.rosso : C.linea};padding:0 14px;cursor:pointer;font-size:15px;font-weight:700`)}>
+          <label style={css(`display:flex;align-items:center;gap:12px;min-height:48px;border:2px solid ${lavoratore ? C.rosso : C.bordo};padding:0 14px;cursor:pointer;font-size:15px;font-weight:700`)}>
             <input type="checkbox" checked={lavoratore} onChange={(e) => setLavoratore(e.target.checked)} style={css(`width:20px;height:20px;accent-color:${C.rosso}`)} />
             Sono anche studente-lavoratore
           </label>
@@ -493,34 +503,58 @@ export function ProfiloTab({
         </div>
       )}
 
-      <button type="button" onClick={onLogout} style={css(`${BOTTONE.contorno};width:100%;margin-top:12px`)}>
+      {/* aiuto e uscita: in fondo, ma sempre nello stesso posto */}
+      <button
+        type="button"
+        onClick={onAiuto}
+        style={css(`${BOTTONE.contorno};width:100%;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px`)}
+      >
+        <Icona nome="domanda" size={18} />
+        Come funziona e aiuto
+      </button>
+      <button type="button" onClick={onLogout} style={css(`${BOTTONE.contorno};width:100%;margin-top:10px`)}>
         Esci
       </button>
 
-      <Foglio aperto={scegliZone} onChiudi={() => setScegliZone(false)} titolo="Zone che ti interessano">
-        <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
+      <Foglio
+        aperto={scegliZone}
+        onChiudi={() => setScegliZone(false)}
+        titolo="Zone che ti interessano"
+        piede={
+          <div style={css("display:flex;gap:8px")}>
+            <button type="button" onClick={() => setZone([])} disabled={!zone.length} style={css(`${BOTTONE.contorno};flex:1`)}>
+              Tutta Bologna
+            </button>
+            <button type="button" onClick={() => setScegliZone(false)} style={css(`${BOTTONE.scuro};flex:1;height:48px`)}>
+              Fatto{zone.length ? ` (${zone.length})` : ""}
+            </button>
+          </div>
+        }
+      >
+        <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
           {ZONE_BOLOGNA.map((z) => (
             <Chip key={z} on={zone.includes(z)} onClick={() => toggle(zone, setZone, z)}>
               {z}
             </Chip>
           ))}
         </div>
-        <div style={css("display:flex;gap:8px;margin-top:18px")}>
-          <button type="button" onClick={() => setZone([])} style={css(`${BOTTONE.contorno};flex:1`)}>
-            Tutta Bologna
-          </button>
-          <button type="button" onClick={() => setScegliZone(false)} style={css(`${BOTTONE.scuro};flex:1;height:48px`)}>
-            Fatto{zone.length ? ` (${zone.length})` : ""}
-          </button>
-        </div>
       </Foglio>
 
-      <Foglio aperto={scegliAbit} onChiudi={() => setScegliAbit(false)} titolo="Le tue abitudini">
+      <Foglio
+        aperto={scegliAbit}
+        onChiudi={() => setScegliAbit(false)}
+        titolo="Le tue abitudini"
+        piede={
+          <button type="button" onClick={() => setScegliAbit(false)} style={css(`${BOTTONE.scuro};width:100%;height:48px`)}>
+            Fatto{abit.length ? ` (${abit.length})` : ""}
+          </button>
+        }
+      >
         <div style={css("display:flex;flex-direction:column;gap:16px")}>
           {ABIT_CATEGORIE.map((cat) => (
             <fieldset key={cat.titolo} style={css("border:0;margin:0;padding:0")}>
               <legend style={css("font-size:13px;font-weight:800;margin-bottom:8px;padding:0")}>{cat.titolo}</legend>
-              <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
+              <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
                 {cat.voci.map((v) => (
                   <Chip key={v} on={abit.includes(v)} onClick={() => toggle(abit, setAbit, v)}>
                     {v}
@@ -530,9 +564,6 @@ export function ProfiloTab({
             </fieldset>
           ))}
         </div>
-        <button type="button" onClick={() => setScegliAbit(false)} style={css(`${BOTTONE.scuro};width:100%;margin-top:18px;height:48px`)}>
-          Fatto{abit.length ? ` (${abit.length})` : ""}
-        </button>
       </Foglio>
     </div>
   );

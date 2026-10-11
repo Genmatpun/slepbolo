@@ -5,7 +5,7 @@ import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 import { MOTIVI_SEGNALAZIONE } from "@/lib/constants";
 import type { MobileAnnuncio } from "@/lib/annuncio-mobile";
 import type { AnnuncioPrivato } from "@/lib/types";
-import { BOTTONE, C, css } from "./stile";
+import { BOTTONE, C, css, dataBreve } from "./stile";
 import { Foglio, Icona } from "./ui";
 
 // ============================================================
@@ -40,13 +40,20 @@ export function Contatti({
   annuncio,
   loggato,
   onAccedi,
+  contattataIl,
+  onContattata,
+  onGiaPresa,
 }: {
   annuncio: MobileAnnuncio;
   loggato: boolean;
   onAccedi: () => void;
+  /** data ISO dell'ultima volta che l'utente ha scritto a chi affitta, se l'ha fatto */
+  contattataIl: string | null;
+  onContattata: () => void;
+  /** l'utente dice che la stanza era già presa: si apre la segnalazione già compilata */
+  onGiaPresa: () => void;
 }) {
   const [stato, setStato] = useState<Stato>(loggato ? { tipo: "carico" } : { tipo: "ospite" });
-  const [consigli, setConsigli] = useState(false);
   const [tentativo, setTentativo] = useState(0);
 
   useEffect(() => {
@@ -89,14 +96,13 @@ export function Contatti({
     <div style={css(`padding:12px 20px calc(16px + env(safe-area-inset-bottom));background:${C.crema};border-top:2px solid ${C.ink}`)}>
       {stato.tipo === "ospite" && (
         <>
-          {intestazione("Per contattare chi affitta, entra con la mail UniBo")}
           <button type="button" onClick={onAccedi} style={css(`${BOTTONE.pieno};width:100%;display:flex;align-items:center;gap:10px;text-align:left`)}>
             <Icona nome="lucchetto" />
             <span style={css("flex:1")}>Entra e vedi i contatti</span>
             <Icona nome="freccia" />
           </button>
           <div style={css(`font-size:12.5px;color:${C.grigio};margin-top:8px;line-height:1.4`)}>
-            I numeri li vedono solo gli studenti UniBo: così chi pubblica non viene contattato da agenzie e sconosciuti.
+            Con la mail UniBo: così chi pubblica non viene contattato da agenzie e sconosciuti.
           </div>
         </>
       )}
@@ -137,6 +143,7 @@ export function Contatti({
                 href={`https://wa.me/${numeroWhatsApp(stato.dati.contatto_whatsapp || stato.dati.contatto_telefono || "")}?text=${encodeURIComponent(messaggioWhatsApp(annuncio))}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={onContattata}
                 style={css(`${BOTTONE.pieno};flex:1.4;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none`)}
               >
                 <Icona nome="chat" size={18} />
@@ -146,6 +153,7 @@ export function Contatti({
             {stato.dati.contatto_telefono && (
               <a
                 href={`tel:${stato.dati.contatto_telefono.replace(/\s/g, "")}`}
+                onClick={onContattata}
                 style={css(`${BOTTONE.scuro};flex:1;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none`)}
               >
                 <Icona nome="telefono" size={18} />
@@ -155,6 +163,7 @@ export function Contatti({
             {stato.dati.contatto_email && (
               <a
                 href={`mailto:${stato.dati.contatto_email}?subject=${encodeURIComponent(`Stanza in ${annuncio.zona} (SLEPBOLO)`)}`}
+                onClick={onContattata}
                 aria-label="Scrivi una email"
                 style={css(`${BOTTONE.contorno};height:52px;flex:none;width:52px;padding:0;display:grid;place-items:center;text-decoration:none`)}
               >
@@ -162,23 +171,51 @@ export function Contatti({
               </a>
             )}
           </div>
-          <div style={css(`font-size:12.5px;color:${C.grigio};margin-top:8px`)}>
-            Il messaggio WhatsApp è già scritto: puoi cambiarlo prima di inviarlo.
-          </div>
+          {contattataIl ? (
+            // dopo aver scritto: l'app se lo ricorda, e chi scopre che era già presa può dirlo
+            <div style={css("display:flex;align-items:center;flex-wrap:wrap;gap:0 14px;margin-top:4px")}>
+              <span style={css(`display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:13px;font-weight:800;color:${C.verde}`)}>
+                <Icona nome="check" size={16} />
+                Hai scritto il {dataBreve(contattataIl)}
+              </span>
+              <button
+                type="button"
+                onClick={onGiaPresa}
+                style={css(`min-height:44px;border:0;background:transparent;color:${C.ink};font-family:inherit;font-size:13px;font-weight:800;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px`)}
+              >
+                Era già presa? Dillo
+              </button>
+            </div>
+          ) : (
+            <div style={css(`font-size:12.5px;color:${C.grigio};margin-top:8px`)}>
+              Il messaggio WhatsApp è già scritto: puoi cambiarlo prima di inviarlo.
+            </div>
+          )}
         </>
       )}
+    </div>
+  );
+}
 
+/**
+ * "Prima di pagare": il pulsante e il foglio con i quattro controlli.
+ * Sta nella pagina della casa, vicino a contratto e caparra, dove serve.
+ */
+export function ConsigliPagamento() {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <>
       <button
         type="button"
-        onClick={() => setConsigli(true)}
-        style={css(`margin-top:10px;min-height:44px;border:0;background:transparent;color:${C.ink};font-family:inherit;font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px;padding:0;cursor:pointer`)}
+        onClick={() => setAperto(true)}
+        style={css(`min-height:44px;border:0;background:transparent;color:${C.ink};font-family:inherit;font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:8px;padding:0;cursor:pointer;text-align:left`)}
       >
         <Icona nome="scudo" size={18} />
-        Prima di pagare: 4 cose da controllare
+        <span style={css("text-decoration:underline;text-underline-offset:3px")}>Prima di pagare: 4 cose da controllare</span>
       </button>
 
-      <Foglio aperto={consigli} onChiudi={() => setConsigli(false)} titolo="Prima di versare qualsiasi cifra">
-        <ol style={css(`margin:0;padding-left:20px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.45;color:${C.testo}`)}>
+      <Foglio aperto={aperto} onChiudi={() => setAperto(false)} titolo="Prima di versare qualsiasi cifra">
+        <ol className="sb-numeri" style={css(`margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.45;color:${C.testo}`)}>
           <li><b>Vedi la casa di persona</b>, o almeno in videochiamata dal vivo, prima di dare soldi.</li>
           <li><b>Niente caparra prima della visita.</b> Chi la chiede per &laquo;bloccarti la stanza&raquo; è il segnale di truffa più comune.</li>
           <li><b>Diffida di chi è sempre all&apos;estero</b> e manda le chiavi per posta.</li>
@@ -188,7 +225,7 @@ export function Contatti({
           Se qualcosa non torna, segnala l&apos;annuncio: lo controlliamo e, se serve, lo togliamo.
         </div>
       </Foglio>
-    </div>
+    </>
   );
 }
 
@@ -200,15 +237,25 @@ export function Segnala({
   apartmentId,
   loggato,
   onAccedi,
+  giaPresa = 0,
 }: {
   apartmentId: string;
   loggato: boolean;
   onAccedi: () => void;
+  /** ogni volta che cambia, il foglio si apre con "La stanza è già presa" già scelto */
+  giaPresa?: number;
 }) {
   const [aperto, setAperto] = useState(false);
   const [motivo, setMotivo] = useState<string>("");
   const [dettaglio, setDettaglio] = useState("");
   const [fase, setFase] = useState<"scelta" | "invio" | "fatto" | "errore">("scelta");
+
+  useEffect(() => {
+    if (!giaPresa) return;
+    setMotivo("gia_presa");
+    setFase("scelta");
+    setAperto(true);
+  }, [giaPresa]);
 
   async function invia() {
     if (!motivo || !supabaseConfigurato()) return;
@@ -264,7 +311,7 @@ export function Segnala({
                     aria-checked={on}
                     onClick={() => setMotivo(m.value)}
                     style={css(
-                      `min-height:48px;text-align:left;border:2px solid ${on ? C.rosso : C.linea};background:${on ? "rgba(162,0,29,.06)" : C.carta};color:${C.ink};font-family:inherit;font-size:15px;font-weight:700;padding:10px 14px;cursor:pointer`,
+                      `min-height:48px;text-align:left;border:2px solid ${on ? C.rosso : C.bordo};background:${on ? "rgba(162,0,29,.06)" : C.carta};color:${C.ink};font-family:inherit;font-size:15px;font-weight:700;padding:10px 14px;cursor:pointer`,
                     )}
                   >
                     {m.label}
@@ -279,7 +326,7 @@ export function Segnala({
                 onChange={(e) => setDettaglio(e.target.value)}
                 maxLength={500}
                 rows={3}
-                style={css(`margin-top:6px;width:100%;border:2px solid ${C.linea};background:${C.carta};padding:10px 12px;font-family:inherit;font-size:16px;color:${C.ink};resize:vertical`)}
+                style={css(`margin-top:6px;width:100%;border:2px solid ${C.bordo};background:${C.carta};padding:10px 12px;font-family:inherit;font-size:16px;color:${C.ink};resize:vertical`)}
               />
             </label>
             {fase === "errore" && (

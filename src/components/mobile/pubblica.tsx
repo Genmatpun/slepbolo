@@ -1834,6 +1834,7 @@ function Guscio({
       role="dialog"
       aria-modal="true"
       aria-label={titolo}
+      className="sb-pannello"
       style={css(`position:absolute;inset:0;z-index:85;background:${C.crema};display:flex;flex-direction:column;outline:none;animation:sbSlide .32s ${EASE} both`)}
     >
       <div style={css(`padding:calc(10px + env(safe-area-inset-top)) 8px 10px;border-bottom:2px solid ${C.ink}`)}>

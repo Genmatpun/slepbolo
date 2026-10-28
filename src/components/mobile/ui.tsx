@@ -346,7 +346,7 @@ export function Foglio({
 
   if (!aperto) return null;
   return (
-    <div style={css("position:absolute;inset:0;z-index:120;display:flex;flex-direction:column;justify-content:flex-end")}>
+    <div className="sb-foglio" style={css("position:absolute;inset:0;z-index:120;display:flex;flex-direction:column;justify-content:flex-end")}>
       <div
         onClick={onChiudi}
         style={css("position:absolute;inset:0;background:rgba(27,24,21,.45);animation:sbFade .2s ease both")}
@@ -357,6 +357,7 @@ export function Foglio({
         aria-modal="true"
         aria-labelledby={idTitolo}
         tabIndex={-1}
+        className="sb-foglio-pannello"
         style={css(
           `position:relative;max-height:88%;display:flex;flex-direction:column;background:${C.crema};border-top:2px solid ${C.ink};animation:sbSheet .32s ${EASE} both;outline:none`,
         )}
@@ -410,6 +411,7 @@ export function Avviso({
     <div
       role="status"
       aria-live="polite"
+      className="sb-avviso"
       style={css(
         `position:absolute;left:16px;right:16px;bottom:calc(${alto ? 166 : 92}px + env(safe-area-inset-bottom));z-index:90;background:${C.ink};color:${C.crema};display:flex;align-items:center;gap:12px;padding:4px 4px 4px 16px;min-height:52px;animation:sbIn .28s ${EASE} both;box-shadow:0 10px 30px rgba(27,24,21,.25)`,
       )}

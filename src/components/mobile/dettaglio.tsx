@@ -129,6 +129,7 @@ export function Dettaglio({
       role="dialog"
       aria-modal="true"
       aria-label={a.titolo}
+      className="sb-pannello"
       style={css(`position:absolute;inset:0;background:${C.crema};z-index:70;display:flex;flex-direction:column;outline:none;animation:sbSlide .34s ${EASE} both`)}
     >
       <div

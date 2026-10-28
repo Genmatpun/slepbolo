@@ -630,6 +630,30 @@ export function MobileApp({
         .sb-app .maplibregl-ctrl-group button+button{border-top:2px solid ${C.ink}}
         .sb-app .maplibregl-popup-content{border-radius:0;border:2px solid ${C.ink};background:${C.carta};color:${C.ink};font-size:13px;font-weight:800;line-height:1.25;padding:8px 11px;box-shadow:0 6px 18px rgba(27,24,21,.2)}
         .sb-app .maplibregl-popup-tip{display:none}
+        .sb-velo,.sb-solo-desktop{display:none}
+        /* da computer (e da app installata sul computer): menu a sinistra, contenuti larghi,
+           pannelli al centro. Sotto i 900px resta tutto com'è sul telefono. */
+        @media (min-width:900px){
+          .sb-app{max-width:none!important}
+          .sb-nav{top:0!important;bottom:0!important;right:auto!important;width:232px;height:auto!important;padding:28px 14px!important;border-top:0!important;border-right:2px solid ${C.ink};grid-template-columns:1fr!important;grid-auto-rows:max-content;align-content:start;gap:4px;background:${C.carta}!important;backdrop-filter:none!important}
+          .sb-nav .sb-solo-desktop{display:block}
+          .sb-tab{flex-direction:row!important;justify-content:flex-start!important;gap:14px!important;padding:10px 12px!important;min-height:48px}
+          .sb-tab:hover{background:${C.sabbia}}
+          .sb-tab>span:last-child{font-size:17px!important}
+          .sb-tab-segno{width:5px!important;height:24px!important}
+          .sb-main{margin-left:232px}
+          .sb-vista{max-width:860px;margin:0 auto;width:100%;padding-bottom:56px!important}
+          .sb-vista-scopri{max-width:620px;margin:0 auto;width:100%}
+          .sb-azioni{padding-bottom:32px!important}
+          .sb-griglia{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}
+          .sb-scheda-mappa{left:24px!important;right:auto!important;width:420px;bottom:24px!important;border:2px solid ${C.ink}!important}
+          .sb-avviso{left:auto!important;right:32px!important;width:440px;bottom:32px!important}
+          .sb-accesso{padding-left:max(26px,calc(50% - 320px))!important;padding-right:max(26px,calc(50% - 320px))!important}
+          .sb-velo{display:block;position:absolute;inset:0;z-index:65;background:rgba(27,24,21,.5);animation:sbFade .2s ease both}
+          .sb-pannello{left:max(232px,calc(50% + 116px - 350px))!important;right:auto!important;width:min(700px,calc(100% - 232px));border-left:2px solid ${C.ink};border-right:2px solid ${C.ink};box-shadow:0 30px 80px rgba(27,24,21,.35)}
+          .sb-foglio{justify-content:center!important;align-items:center}
+          .sb-foglio-pannello{width:min(620px,92%);max-height:84%!important;border:2px solid ${C.ink}!important;animation:sbIn .25s ease both!important}
+        }
         @media (prefers-reduced-motion: reduce){
           @keyframes sbIn{from{opacity:0}to{opacity:1}}
           @keyframes sbSlide{from{opacity:0}to{opacity:1}}
@@ -651,11 +675,11 @@ export function MobileApp({
         )}
 
         {/* ---------- APP ---------- */}
-        <div inert={sopraApp} style={css("position:absolute;inset:0;display:flex;flex-direction:column")}>
-          <main key={tab} style={css(`flex:1;overflow:hidden;position:relative;animation:sbFade .25s ${EASE} both`)}>
+        <div inert={sopraApp} className="sb-guscio" style={css("position:absolute;inset:0;display:flex;flex-direction:column")}>
+          <main key={tab} className="sb-main" style={css(`flex:1;overflow:hidden;position:relative;animation:sbFade .25s ${EASE} both`)}>
             {/* SCOPRI */}
             {tab === "scopri" && (
-              <div style={css(`height:100%;display:flex;flex-direction:column;padding:${testata} 20px 0`)}>
+              <div className="sb-vista-scopri" style={css(`height:100%;display:flex;flex-direction:column;padding:${testata} 20px 0`)}>
                 <div style={css("display:flex;align-items:center;gap:8px")}>
                   <h1 style={css(`${titoloGrande};flex:1`)}>Scopri</h1>
                   <button type="button" onClick={() => apriPubblica()} style={css(`${BOTTONE.piccolo};white-space:nowrap`)}>
@@ -872,7 +896,7 @@ export function MobileApp({
                     </button>
                   </div>
                 )}
-                <div style={css("display:flex;gap:10px;padding:12px 0 calc(90px + env(safe-area-inset-bottom))")}>
+                <div className="sb-azioni" style={css("display:flex;gap:10px;padding:12px 0 calc(90px + env(safe-area-inset-bottom))")}>
                   <button type="button" onClick={() => avanza(false)} disabled={!stack.length} style={css(`${BOTTONE.contorno};height:52px;flex:1`)}>
                     Passa
                   </button>
@@ -894,7 +918,7 @@ export function MobileApp({
             {/* CERCA */}
             {tab === "cerca" && (
               <div
-                className="sb-noscroll"
+                className="sb-noscroll sb-vista"
                 style={css(`height:100%;overflow:auto;overscroll-behavior:contain;padding:${testata} 0 calc(104px + env(safe-area-inset-bottom))`)}
               >
                 <div style={css("padding:0 20px")}>
@@ -996,7 +1020,7 @@ export function MobileApp({
                         )}
                       </div>
                     ) : (
-                      poolCerca.map((a) => riga(a))
+                      <div className="sb-griglia">{poolCerca.map((a) => riga(a))}</div>
                     )}
                   </>
                 )}
@@ -1058,6 +1082,7 @@ export function MobileApp({
                 {selA && (
                   <div
                     key={selA.id}
+                    className="sb-scheda-mappa"
                     style={css(`position:absolute;left:0;right:0;bottom:calc(78px + env(safe-area-inset-bottom));background:${C.carta};border-top:2px solid ${C.ink};padding:16px 20px 18px;animation:sbSheet .3s ${EASE} both;z-index:6`)}
                   >
                     <div style={css("display:flex;align-items:baseline;gap:10px")}>
@@ -1094,7 +1119,7 @@ export function MobileApp({
 
             {/* SALVATI */}
             {tab === "salvati" && (
-              <div className="sb-noscroll" style={css(`height:100%;overflow:auto;overscroll-behavior:contain;padding:${testata} 20px calc(104px + env(safe-area-inset-bottom))`)}>
+              <div className="sb-noscroll sb-vista" style={css(`height:100%;overflow:auto;overscroll-behavior:contain;padding:${testata} 20px calc(104px + env(safe-area-inset-bottom))`)}>
                 <h1 style={css(titoloGrande)}>Salvati</h1>
                 <div style={css(`height:2px;background:${C.ink};margin:12px 0 16px`)} />
                 {salvate.length === 0 && (
@@ -1121,7 +1146,7 @@ export function MobileApp({
                     per contattare chi affitta.
                   </div>
                 )}
-                <div style={css("margin:0 -20px")}>
+                <div className="sb-griglia" style={css("margin:0 -20px")}>
                   {salvate.map((s) => {
                     const a = annunci.find((x) => x.id === s.id);
                     if (a) return riga(a);
@@ -1168,9 +1193,15 @@ export function MobileApp({
 
           {/* TAB BAR */}
           <nav
+            className="sb-nav"
             aria-label="Sezioni dell'app"
             style={css(`position:absolute;left:0;right:0;bottom:0;height:calc(78px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:rgba(255,253,249,.94);backdrop-filter:blur(14px);border-top:2px solid ${C.ink};display:grid;grid-template-columns:repeat(5,1fr);align-items:start;padding-top:8px;z-index:40`)}
           >
+            {/* solo da computer: il logo in cima al menu laterale */}
+            <div className="sb-solo-desktop" style={css("padding:0 12px 22px")}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="SLEPBOLO" width={150} height={94} style={css("width:150px;height:auto;display:block")} />
+            </div>
             {tabDefs.map(([k, label]) => {
               const on = tab === k;
               return (
@@ -1178,13 +1209,14 @@ export function MobileApp({
                   type="button"
                   key={k}
                   aria-current={on ? "page" : undefined}
+                  className="sb-tab"
                   onClick={() => {
                     setTab(k);
                     setDetail(null);
                   }}
                   style={css("display:flex;flex-direction:column;align-items:center;gap:7px;background:transparent;border:0;padding:8px 0;min-height:52px;cursor:pointer;font-family:inherit")}
                 >
-                  <span aria-hidden style={css(`width:22px;height:4px;background:${on ? C.rosso : C.spento};transition:background .2s`)} />
+                  <span aria-hidden className="sb-tab-segno" style={css(`width:22px;height:4px;background:${on ? C.rosso : C.spento};transition:background .2s`)} />
                   <span style={css(`font-size:12px;font-weight:${on ? 800 : 600};color:${on ? C.ink : C.grigio};letter-spacing:-.01em`)}>
                     {label}
                     {k === "salvati" && salvate.length ? ` · ${salvate.length}` : ""}
@@ -1194,6 +1226,9 @@ export function MobileApp({
             })}
           </nav>
         </div>
+
+        {/* da computer i pannelli stanno al centro: il resto dell'app si scurisce dietro */}
+        {(det || pubblica || cercoAperto || (accesso && user === null)) && <div aria-hidden className="sb-velo" />}
 
         {/* ---------- DETTAGLIO ---------- */}
         {det && (
@@ -1241,7 +1276,7 @@ export function MobileApp({
 
         {/* ---------- ACCEDI (sopra a tutto, quando serve) ---------- */}
         {accesso && user === null && (
-          <div style={css("position:absolute;inset:0;z-index:150")}>
+          <div className="sb-pannello" style={css("position:absolute;inset:0;z-index:150")}>
             <AccediScreen
               motivo={motivoAccesso}
               onChiudi={() => {

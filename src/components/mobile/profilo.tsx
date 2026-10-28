@@ -219,7 +219,7 @@ export function ProfiloTab({
   const etaNonValida = !!eta && (!/^\d+$/.test(eta) || Number(eta) < 16 || Number(eta) > 99);
 
   return (
-    <div className="sb-noscroll" style={css("height:100%;overflow:auto;overscroll-behavior:contain;padding:calc(28px + env(safe-area-inset-top)) 20px calc(120px + env(safe-area-inset-bottom))")}>
+    <div className="sb-noscroll sb-vista" style={css("height:100%;overflow:auto;overscroll-behavior:contain;padding:calc(28px + env(safe-area-inset-top)) 20px calc(120px + env(safe-area-inset-bottom))")}>
       <h1 style={css("font-size:34px;font-weight:900;letter-spacing:-.045em;margin:0;line-height:1")}>Profilo</h1>
       <div style={css(`height:2px;background:${C.ink};margin:12px 0 18px`)} />
 

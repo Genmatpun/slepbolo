@@ -293,6 +293,7 @@ export function IlMioCerco({ userId, onChiudi, onTolto }: { userId: string; onCh
       role="dialog"
       aria-modal="true"
       aria-label="Il tuo annuncio Cerco stanza"
+      className="sb-pannello"
       style={css(`position:absolute;inset:0;z-index:80;background:${C.crema};display:flex;flex-direction:column;outline:none;animation:sbSlide .32s ${EASE} both`)}
     >
       <div style={css(`display:flex;align-items:center;gap:8px;padding:calc(12px + env(safe-area-inset-top)) 12px 12px;border-bottom:2px solid ${C.ink}`)}>

@@ -85,7 +85,7 @@ export async function POST(req: Request) {
   const client = new Anthropic();
   try {
     const risposta = await client.beta.messages.parse({
-      model: "claude-opus-5-5",
+      model: "claude-sonnet-5-5",
       max_tokens: 8000,
       // Estrazione semplice: poco ragionamento basta, e costa meno.
       output_config: { effort: "low", format: betaZodOutputFormat(AnnuncioEstratto) },

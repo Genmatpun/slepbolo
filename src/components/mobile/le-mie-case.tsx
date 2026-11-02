@@ -6,7 +6,7 @@ import { STATI_STANZA } from "@/lib/constants";
 import { GIORNI_VALIDITA, annuncioScaduto, giorniAllaScadenza, giorniDa, quandoAggiornato, type StatoStanza } from "@/lib/types";
 import { INCOLLA_ATTIVO } from "./pubblica";
 import { BOTTONE, C, css, euro } from "./stile";
-import { Foglio, Freschezza, Icona, Segmenti } from "./ui";
+import { CampoTesto, Foglio, Freschezza, Icona, Segmenti } from "./ui";
 
 // ============================================================
 // Le mie case — il ciclo di vita di un annuncio.
@@ -15,7 +15,25 @@ import { Foglio, Freschezza, Icona, Segmenti } from "./ui";
 // in trattativa o presa con un tocco, e conferma "è ancora libera".
 // Un annuncio non confermato da 30 giorni sparisce dalla ricerca: resta
 // qui, e un tocco lo rimette online.
+//
+// Chi ha pubblicato per conto di qualcuno può passargli l'annuncio:
+// la persona accetta da qui e da quel momento lo gestisce lei.
 // ============================================================
+
+/** Un annuncio che qualcuno ti sta passando (funzione passaggi_in_arrivo). */
+interface PassaggioInArrivo {
+  apartment_id: string;
+  titolo: string;
+  zona: string;
+  da_nome: string | null;
+  scade: string;
+}
+
+const ESITI_PASSA: Record<string, string> = {
+  non_trovato: "Non trovo nessun account con questa mail. Chiedi alla persona di registrarsi su SLEPBOLO e controlla di aver scritto la stessa mail.",
+  gia_suo: "Questo annuncio è già suo.",
+  non_autorizzato: "Solo chi ha pubblicato l'annuncio può passarlo.",
+};
 
 interface StanzaMia {
   id: string;
@@ -72,14 +90,32 @@ export function LeMieCase({
   // stanze il cui stato si sta salvando: un secondo tocco aspetta il primo
   const inVolo = useRef(new Set<string>());
   const [salvando, setSalvando] = useState<string[]>([]);
+  // passare un annuncio a un altro account
+  const [inArrivo, setInArrivo] = useState<PassaggioInArrivo[]>([]);
+  /** annunci miei in attesa che qualcuno li accetti: id annuncio -> mail */
+  const [inUscita, setInUscita] = useState<Map<string, string>>(new Map());
+  const [daPassare, setDaPassare] = useState<CasaMia | null>(null);
+  const [mailPassa, setMailPassa] = useState("");
 
   const carica = useCallback(async () => {
     if (!supabaseConfigurato()) return setCase([]);
     const supabase = createClient();
-    const [host, membro] = await Promise.all([
+    const [host, membro, arrivo, uscita] = await Promise.all([
       supabase.from("apartments").select(CAMPI).eq("host_id", userId).order("created_at", { ascending: false }),
       supabase.from("housemates").select(`apartments(${CAMPI})`).eq("profile_id", userId).eq("stato", "confermato"),
+      supabase.rpc("passaggi_in_arrivo"),
+      supabase.from("passaggi_annuncio").select("apartment_id, email_a, scade").eq("da", userId),
     ]);
+    // i passaggi sono un di più: se non rispondono, il resto funziona lo stesso
+    setInArrivo(arrivo.error ? [] : ((arrivo.data ?? []) as PassaggioInArrivo[]));
+    const adesso = Date.now();
+    setInUscita(
+      new Map(
+        ((uscita.error ? [] : uscita.data) ?? [])
+          .filter((p) => new Date(p.scade as string).getTime() > adesso)
+          .map((p) => [p.apartment_id as string, p.email_a as string]),
+      ),
+    );
     if (host.error) {
       setErrore("Non riesco a caricare le tue case. Controlla la connessione e riprova.");
       return;
@@ -224,6 +260,70 @@ export function LeMieCase({
     else setErroreFoglio("Non sono riuscito a toglierti dall'annuncio. Controlla la connessione e riprova.");
   }
 
+  async function passa(casa: CasaMia) {
+    const mail = mailPassa.trim().toLowerCase();
+    setErroreFoglio(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      setErroreFoglio("Scrivi la mail con cui la persona si è registrata.");
+      return;
+    }
+    setInCorso(casa.id);
+    let risposta: string | null = null;
+    try {
+      const { data, error } = await createClient().rpc("passa_annuncio", { p_apartment: casa.id, p_email: mail });
+      if (!error) risposta = data as string;
+    } catch {
+      // risposta resta null: lo dico sotto
+    }
+    setInCorso(null);
+    if (risposta !== "ok") {
+      setErroreFoglio(
+        (risposta && ESITI_PASSA[risposta]) ?? "Non sono riuscito a passare l'annuncio. Controlla la connessione e riprova.",
+      );
+      return;
+    }
+    setDaPassare(null);
+    await carica();
+    setEsito({
+      dove: casa.id,
+      tono: "ok",
+      testo: `Fatto. Quando ${mail} accetta dal suo profilo, l'annuncio diventa suo. Fino ad allora lo gestisci tu.`,
+    });
+  }
+
+  async function annullaPassaggio(casa: CasaMia) {
+    const ok = await esegui(casa.id, () => createClient().from("passaggi_annuncio").delete().eq("apartment_id", casa.id));
+    setEsito(
+      ok
+        ? { dove: casa.id, tono: "ok", testo: "Passaggio annullato: l'annuncio resta tuo." }
+        : { dove: casa.id, tono: "errore", testo: "Non sono riuscito ad annullare. Controlla la connessione e riprova." },
+    );
+  }
+
+  async function rispondiPassaggio(p: PassaggioInArrivo, accetta: boolean) {
+    setInCorso(p.apartment_id);
+    setEsito(null);
+    let risposta: string | null = null;
+    try {
+      const { data, error } = await createClient().rpc("rispondi_passaggio", { p_apartment: p.apartment_id, p_accetta: accetta });
+      if (!error) risposta = data as string;
+    } catch {
+      // risposta resta null
+    }
+    setInCorso(null);
+    await carica();
+    if (risposta === "accettato") {
+      onCambiato();
+      setEsito({ dove: p.apartment_id, tono: "ok", testo: "Ora l'annuncio è tuo: lo trovi qui sotto e lo gestisci tu." });
+    } else if (risposta !== "rifiutato") {
+      setEsito({
+        dove: "arrivo",
+        tono: "errore",
+        testo: risposta === "non_valido" ? "Questo passaggio non è più valido: è scaduto o è stato annullato." : "Non sono riuscito a rispondere. Controlla la connessione e riprova.",
+      });
+    }
+  }
+
   if (case_ === null && !errore) {
     return <div aria-busy="true" style={css(`height:60px;font-size:14px;color:${C.grigio};font-weight:600`)}>Carico le tue case…</div>;
   }
@@ -252,6 +352,36 @@ export function LeMieCase({
           <button type="button" onClick={carica} style={css(BOTTONE.piccolo)}>
             Riprova
           </button>
+        </div>
+      )}
+
+      {/* annunci che qualcuno ti sta passando: solo se ce ne sono */}
+      {inArrivo.length > 0 && (
+        <div style={css(`border:2px solid ${C.rosso};background:${C.carta}`)}>
+          <div style={css(`padding:10px 14px;background:${C.rosso};color:${C.crema};font-size:14px;font-weight:800`)}>
+            {inArrivo.length === 1 ? "Ti hanno passato un annuncio" : `Ti hanno passato ${inArrivo.length} annunci`}
+          </div>
+          {inArrivo.map((p) => {
+            const occupato = inCorso === p.apartment_id;
+            return (
+              <div key={p.apartment_id} style={css(`padding:14px;border-top:1px solid ${C.linea}`)}>
+                <div style={css("font-size:16px;font-weight:900;letter-spacing:-.02em")}>{p.titolo}</div>
+                <div style={css(`font-size:14px;color:${C.testo};margin-top:4px;line-height:1.4`)}>
+                  {p.zona} · {p.da_nome ? `${p.da_nome} l'ha pubblicato per te` : "È stato pubblicato per te"}. Se accetti diventa tuo: lo modifichi, segni le
+                  stanze come prese e lo togli quando vuoi.
+                </div>
+                <div style={css("display:flex;gap:8px;margin-top:11px")}>
+                  <button type="button" onClick={() => rispondiPassaggio(p, true)} disabled={occupato} style={css(`${BOTTONE.scuro};height:46px;flex:1${spento(occupato)}`)}>
+                    {occupato ? "Un attimo…" : "Sì, è la mia casa"}
+                  </button>
+                  <button type="button" onClick={() => rispondiPassaggio(p, false)} disabled={occupato} style={css(`${BOTTONE.contorno};height:46px;flex:1${spento(occupato)}`)}>
+                    No
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          <div style={css("padding:0 14px")}>{mostraEsito("arrivo")}</div>
         </div>
       )}
 
@@ -363,6 +493,18 @@ export function LeMieCase({
               {mostraEsito(c.id)}
             </div>
 
+            {/* passaggio in attesa: l'annuncio è ancora tuo finché l'altra persona non accetta */}
+            {c.sonoHost && inUscita.has(c.id) && (
+              <div style={css(`margin:0 14px 12px;padding:10px 12px;background:${C.sabbia};display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px`)}>
+                <span style={css(`flex:1;min-width:180px;font-size:13.5px;font-weight:700;line-height:1.4;color:${C.ink};overflow-wrap:anywhere`)}>
+                  In attesa che {inUscita.get(c.id)} accetti
+                </span>
+                <button type="button" disabled={occupato} onClick={() => annullaPassaggio(c)} style={css(`${SECONDARIA};padding:0${spento(occupato)}`)}>
+                  Annulla
+                </button>
+              </div>
+            )}
+
             {/* il resto: sempre a portata, ma in secondo piano */}
             <div style={css(`display:flex;flex-wrap:wrap;align-items:center;gap:0 4px;padding:2px 6px;border-top:1px solid ${C.linea}`)}>
               <button type="button" disabled={occupato} onClick={() => onModifica(c.id)} style={css(`${SECONDARIA}${spento(occupato)}`)}>
@@ -373,6 +515,21 @@ export function LeMieCase({
                 <button type="button" disabled={occupato} onClick={() => nascondi(c)} style={css(`${SECONDARIA}${spento(occupato)}`)}>
                   <Icona nome="occhio" size={16} />
                   Nascondi
+                </button>
+              )}
+              {c.sonoHost && (
+                <button
+                  type="button"
+                  disabled={occupato}
+                  onClick={() => {
+                    setErroreFoglio(null);
+                    setMailPassa(inUscita.get(c.id) ?? "");
+                    setDaPassare(c);
+                  }}
+                  style={css(`${SECONDARIA}${spento(occupato)}`)}
+                >
+                  <Icona nome="persona" size={16} />
+                  Passa a chi affitta
                 </button>
               )}
               {c.sonoHost ? (
@@ -430,6 +587,39 @@ export function LeMieCase({
         <p style={css(`margin:0;font-size:15px;line-height:1.45;color:${C.testo}`)}>
           Eliminando cancelli anche foto, stanze e coinquilini collegati. Non si può annullare.
         </p>
+      </Foglio>
+
+      <Foglio
+        aperto={!!daPassare}
+        onChiudi={() => setDaPassare(null)}
+        titolo="Passa l'annuncio"
+        piede={
+          <>
+            <div role="alert">
+              {erroreFoglio && <div style={css(`margin-bottom:10px;font-size:14px;font-weight:700;line-height:1.4;color:${C.rosso}`)}>{erroreFoglio}</div>}
+            </div>
+            <button type="button" onClick={() => daPassare && passa(daPassare)} disabled={!!inCorso} style={css(`${BOTTONE.pieno};width:100%${spento(!!inCorso)}`)}>
+              {inCorso ? "Un attimo…" : "Passa l'annuncio"}
+            </button>
+            <button type="button" onClick={() => setDaPassare(null)} disabled={!!inCorso} style={css(`${BOTTONE.contorno};width:100%;margin-top:8px${spento(!!inCorso)}`)}>
+              Lascialo a me
+            </button>
+          </>
+        }
+      >
+        <p style={css(`margin:0 0 14px;font-size:15px;line-height:1.45;color:${C.testo}`)}>
+          Hai pubblicato la casa per conto di qualcuno? Scrivi la mail con cui si è registrato: gli arriva una richiesta nel profilo. Se accetta entro 7 giorni,
+          l&apos;annuncio diventa suo e lo gestisce lui. Tu non potrai più modificarlo.
+        </p>
+        <CampoTesto
+          etichetta="Mail della persona"
+          value={mailPassa}
+          onChange={setMailPassa}
+          type="email"
+          inputMode="email"
+          autoComplete="off"
+          placeholder="la mail del suo account SLEPBOLO"
+        />
       </Foglio>
 
       <Foglio

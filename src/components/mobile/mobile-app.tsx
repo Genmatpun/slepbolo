@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
-import { SEDI_UNIBO, ZONE_BOLOGNA, haversineKm, personaCoinquilino, tempiVersoSede } from "@/lib/constants";
+import { DOMINI_STUDENTI, SEDI_UNIBO, ZONE_BOLOGNA, haversineKm, personaCoinquilino, tempiVersoSede, type DominioStudenti } from "@/lib/constants";
 import { leggiProvenienza } from "@/lib/provenienza";
 import { giorniDa, quandoAggiornato } from "@/lib/types";
 import type { MobileAnnuncio } from "@/lib/annuncio-mobile";
@@ -1435,7 +1435,7 @@ function ComeFunziona() {
   return (
     <div>
       <p style={css(`margin:0 0 14px;font-size:15px;line-height:1.5;color:${C.testo}`)}>
-        Guardare le case è libero. Per scrivere a chi affitta, o per pubblicare, entri con la mail @studio.unibo.it: tiene fuori agenzie e sconosciuti.
+        Guardare le case è libero. Per scrivere a chi affitta, o per pubblicare, entri con la mail universitaria (UniBo, UniPR, UniFE o UniMoRe): tiene fuori agenzie e sconosciuti. Chi affitta e non studia entra come host, con una mail che abilitiamo noi.
       </p>
       <div style={css(voce)}>
         <div style={css(nome)}>Scopri</div>
@@ -1503,7 +1503,8 @@ function ComeFunziona() {
 }
 
 // ============================================================
-// Schermata di accesso: solo mail @studio.unibo.it
+// Schermata di accesso: mail universitaria (UniBo, UniPR, UniFE, UniMoRe),
+// oppure, per chi affitta e non studia, una mail che abbiamo abilitato noi.
 // ============================================================
 
 /** "mario.rossi3" → { nome: "Mario", cognome: "Rossi" }: un punto di partenza, modificabile dal profilo. */
@@ -1542,6 +1543,18 @@ function AccediScreen({
 }) {
   const [modo, setModo] = useState<"registrati" | "accedi">("registrati");
   const [local, setLocal] = useState("");
+  const [dominio, setDominio] = useState<DominioStudenti>("studio.unibo.it");
+  /** chi affitta e non è studente: entra con una mail qualsiasi, se l'abbiamo abilitata */
+  const [host, setHost] = useState(false);
+  const esempio = DOMINI_STUDENTI.find((d) => d.dominio === dominio)?.esempio ?? "nome.cognome";
+
+  /** La mail completa da quello che è scritto nel campo (null se il campo è vuoto o non valido). */
+  function mailCompleta(): string | null {
+    const v = local.trim().toLowerCase();
+    if (host) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : null;
+    const l = v.replace(/@.*/, "");
+    return l ? `${l}@${dominio}` : null;
+  }
   const [password, setPassword] = useState("");
   const [mostra, setMostra] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
@@ -1558,10 +1571,10 @@ function AccediScreen({
   async function rimandaConferma() {
     setErrore(null);
     setAvviso(null);
-    const l = local.trim().toLowerCase().replace(/@.*/, "");
-    if (!l) return setErrore("Scrivi prima la tua mail, poi tocca «Rimanda la mail di conferma».");
+    const email = mailCompleta();
+    if (!email) return setErrore("Scrivi prima la tua mail, poi tocca «Rimanda la mail di conferma».");
     if (!supabaseConfigurato()) return setErrore("Accesso non disponibile in questa demo.");
-    const { error } = await createClient().auth.resend({ type: "signup", email: `${l}@studio.unibo.it` });
+    const { error } = await createClient().auth.resend({ type: "signup", email });
     if (error) return setErrore(erroreAccesso(error.message));
     setAvviso("Mail di conferma rimandata. Guarda anche nella posta indesiderata.");
   }
@@ -1569,31 +1582,53 @@ function AccediScreen({
   async function inviaReset() {
     setErrore(null);
     setAvviso(null);
-    const l = local.trim().toLowerCase().replace(/@.*/, "");
-    if (!l) return setErrore("Scrivi prima la tua mail, poi tocca «Password dimenticata».");
+    const email = mailCompleta();
+    if (!email) return setErrore("Scrivi prima la tua mail, poi tocca «Password dimenticata».");
     if (!supabaseConfigurato()) return;
     const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(`${l}@studio.unibo.it`, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset`,
     });
     if (error) return setErrore(erroreAccesso(error.message));
     setAvviso("Ti abbiamo mandato una mail per reimpostare la password: apri il link e scegline una nuova.");
   }
 
+  /** Registrazione di chi affitta: solo con una mail abilitata da noi (tabella host_abilitati). */
+  async function registraHost(email: string) {
+    const supabase = createClient();
+    const { data: abilitata, error: erroreVerifica } = await supabase.rpc("mail_host_abilitata", { p_email: email });
+    if (erroreVerifica || !abilitata) {
+      setInvio(false);
+      return setErrore(
+        erroreVerifica
+          ? "Qualcosa non ha funzionato. Riprova tra poco."
+          : "Questa mail non è ancora abilitata. Scrivici a slepbolo@gmail.com: la abilitiamo noi, poi torni qui e ti registri.",
+      );
+    }
+    const { nome, cognome } = nomeDaMail(email.split("@")[0]);
+    const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { nome, cognome, eta: null } } });
+    setInvio(false);
+    if (error) return setErrore(erroreAccesso(error.message));
+    if (!data.session) {
+      setAvviso("Ti abbiamo mandato una mail: clicca il link per confermare, poi accedi.");
+      setModo("accedi");
+    }
+  }
+
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
     setErrore(null);
     setAvviso(null);
-    const l = local.trim().toLowerCase().replace(/@.*/, "");
-    if (!l) return setErrore("Scrivi la tua mail UniBo.");
+    const email = mailCompleta();
+    if (!email) return setErrore(host ? "Scrivi la tua mail completa, per esempio nome@gmail.com." : "Scrivi la tua mail universitaria.");
     if (password.length < 8) return setErrore("La password deve avere almeno 8 caratteri.");
     if (!supabaseConfigurato()) return setErrore("Accesso non disponibile in questa demo.");
 
-    const email = `${l}@studio.unibo.it`;
     setInvio(true);
     const supabase = createClient();
+    if (modo === "registrati" && host) return registraHost(email);
     if (modo === "registrati") {
-      const { nome, cognome } = nomeDaMail(l);
+      const { nome, cognome } = nomeDaMail(email.split("@")[0]);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -1656,11 +1691,15 @@ function AccediScreen({
       </div>
 
       <h1 style={css("font-size:36px;line-height:.98;font-weight:900;letter-spacing:-.04em;margin:24px 0 8px;max-width:12ch")}>
-        {modo === "registrati" ? "Solo studenti UniBo." : "Bentornato."}
+        {host ? (modo === "registrati" ? "Affitti una stanza." : "Bentornato.") : modo === "registrati" ? "Solo studenti." : "Bentornato."}
       </h1>
       <p style={css("font-size:15px;line-height:1.45;color:rgba(250,243,231,.92);margin:0 0 20px;max-width:34ch")}>
-        {modo === "accedi"
-          ? "Accedi con la tua mail @studio.unibo.it."
+        {host
+          ? modo === "accedi"
+            ? "Accedi con la mail che hai usato per registrarti."
+            : "Non studi ma affitti una stanza? Entri con la tua mail, dopo che l'abbiamo abilitata noi: così restano fuori agenzie e sconosciuti."
+          : modo === "accedi"
+          ? "Accedi con la tua mail universitaria."
           : motivo === "pubblica"
             ? "Per pubblicare una stanza entra con la mail istituzionale: così chi ti scrive è uno studente vero. Appena entri si apre il modulo."
             : motivo === "contatti"
@@ -1690,14 +1729,15 @@ function AccediScreen({
       <form onSubmit={submit} noValidate style={css("display:flex;flex-direction:column;gap:18px")}>
         <div>
           <label htmlFor="sb-mail" style={css(etichetta)}>
-            Mail istituzionale
+            {host ? "La tua mail" : "Mail universitaria"}
           </label>
-          <div style={css("display:flex;align-items:center;border-bottom:2px solid rgba(250,243,231,.7)")}>
+          {host ? (
             <input
               id="sb-mail"
               name="username"
-              style={css(`${campo};border-bottom:0;flex:1`)}
-              placeholder="nome.cognome"
+              type="email"
+              style={css(campo)}
+              placeholder="nome@gmail.com"
               value={local}
               onChange={(e) => setLocal(e.target.value)}
               autoCapitalize="none"
@@ -1705,12 +1745,38 @@ function AccediScreen({
               spellCheck={false}
               autoComplete="username"
               inputMode="email"
-              aria-describedby="sb-mail-dominio"
             />
-            <span id="sb-mail-dominio" style={css("font-size:15px;font-weight:600;color:rgba(250,243,231,.88);white-space:nowrap")}>
-              @studio.unibo.it
-            </span>
-          </div>
+          ) : (
+            <div style={css("display:flex;align-items:center;gap:6px;border-bottom:2px solid rgba(250,243,231,.7)")}>
+              <input
+                id="sb-mail"
+                name="username"
+                style={css(`${campo};border-bottom:0;flex:1;min-width:0`)}
+                placeholder={esempio}
+                value={local}
+                onChange={(e) => setLocal(e.target.value)}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
+                inputMode="email"
+              />
+              <select
+                aria-label="Università"
+                value={dominio}
+                onChange={(e) => setDominio(e.target.value as DominioStudenti)}
+                style={css(
+                  `flex:none;max-width:56%;height:44px;border:0;background:transparent;color:${C.crema};font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;padding:0 2px`,
+                )}
+              >
+                {DOMINI_STUDENTI.map((d) => (
+                  <option key={d.dominio} value={d.dominio} style={{ color: C.ink }}>
+                    @{d.dominio}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div>
           <label htmlFor="sb-password" style={css(etichetta)}>
@@ -1766,8 +1832,22 @@ function AccediScreen({
       </form>
 
       <div style={css("margin-top:16px;font-size:13px;line-height:1.45;color:rgba(250,243,231,.88)")}>
-        Il tuo nome non lo vede nessuno: negli annunci compari solo con età, corso e abitudini.
+        {host
+          ? "Negli annunci compaiono solo i contatti che scegli tu."
+          : "Il tuo nome non lo vede nessuno: negli annunci compari solo con età, corso e abitudini."}
       </div>
+      <button
+        type="button"
+        onClick={() => {
+          setHost((v) => !v);
+          setLocal("");
+          setErrore(null);
+          setAvviso(null);
+        }}
+        style={css(`${link};margin-top:4px`)}
+      >
+        {host ? "Sei uno studente? Entra con la mail universitaria" : "Affitti una stanza e non studi? Entra come host"}
+      </button>
       <div style={css("display:flex;flex-wrap:wrap;gap:0 22px;margin-top:4px")}>
         {onAiuto && (
           <button type="button" onClick={onAiuto} style={css(link)}>

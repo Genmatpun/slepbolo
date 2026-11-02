@@ -52,7 +52,7 @@ export function BadgeVerificato({ className }: { className?: string }) {
         "inline-flex items-center gap-1 border border-verde/30 bg-verde/[0.12] px-2.5 py-1 text-[11.5px] font-bold text-verde",
         className,
       )}
-      title="Registrato con mail @studio.unibo.it"
+      title="Registrato con la mail universitaria"
     >
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path
@@ -63,7 +63,7 @@ export function BadgeVerificato({ className }: { className?: string }) {
           strokeLinejoin="round"
         />
       </svg>
-      Studente UniBo verificato
+      Studente verificato
     </span>
   );
 }

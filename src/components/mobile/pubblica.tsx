@@ -12,6 +12,7 @@ import {
   SERVIZI_CASA,
   SPESE_VOCI,
   ZONE_BOLOGNA,
+  mailStudente,
   personaCoinquilino,
 } from "@/lib/constants";
 import type { AnnuncioEstratto, RispostaEstrazione } from "@/lib/estrazione";
@@ -780,7 +781,8 @@ export function Pubblica({
   // ---------- coinquilini invitati ----------
   function invita() {
     const v = mailInvito.trim().toLowerCase();
-    if (!/^[^\s@]+@studio\.unibo\.it$/.test(v)) return setErroreInvito("Serve la mail UniBo del coinquilino: finisce con @studio.unibo.it.");
+    if (!/^[^\s@]+@[^\s@]+$/.test(v) || !mailStudente(v))
+      return setErroreInvito("Serve la mail universitaria del coinquilino (UniBo, UniPR, UniFE o UniMoRe).");
     if (inviti.includes(v)) return setErroreInvito("Questa mail è già tra gli inviti.");
     setInviti([...inviti, v]);
     setMailInvito("");
@@ -1472,7 +1474,7 @@ export function Pubblica({
                       </button>
                     </div>
                   ))}
-                  <CampoVerificato etichetta="Mail UniBo del coinquilino" campo="invito" errore={erroreInvito ?? err("invito")}>
+                  <CampoVerificato etichetta="Mail universitaria del coinquilino" campo="invito" errore={erroreInvito ?? err("invito")}>
                     {(attr, stile) => (
                       <div style={css("display:flex;gap:8px")}>
                         <input

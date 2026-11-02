@@ -90,7 +90,7 @@ export default async function UtentiPage() {
                   {u.eta ? <span className="text-[13px] text-grigio">{u.eta} anni</span> : null}
                   {u.verificato_unibo && (
                     <span className="border border-verde/40 bg-verde/[0.12] px-2 py-0.5 text-[10px] font-bold uppercase text-verde">
-                      ✓ UniBo
+                      ✓ Studente
                     </span>
                   )}
                   {canaleDi.has(u.id) && (

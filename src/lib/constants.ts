@@ -2,6 +2,25 @@
 // Costanti condivise di SLEPBOLO
 // ============================================================
 
+/**
+ * Le mail universitarie con cui ci si registra come studente.
+ * Va tenuto allineato con la funzione is_unibo() del database (migrazione 0016).
+ */
+export const DOMINI_STUDENTI = [
+  { dominio: "studio.unibo.it", ateneo: "UniBo", esempio: "nome.cognome" },
+  { dominio: "studenti.unipr.it", ateneo: "UniPR", esempio: "nome.cognome" },
+  { dominio: "edu.unife.it", ateneo: "UniFE", esempio: "nomeutente" },
+  { dominio: "studenti.unimore.it", ateneo: "UniMoRe", esempio: "numero di matricola" },
+] as const;
+
+export type DominioStudenti = (typeof DOMINI_STUDENTI)[number]["dominio"];
+
+/** true se la mail è di uno degli atenei ammessi. */
+export function mailStudente(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  return DOMINI_STUDENTI.some((d) => e.endsWith("@" + d.dominio));
+}
+
 /** Sedi UniBo con coordinate reali, usate per il calcolo distanze e i marker mappa. */
 export const SEDI_UNIBO = [
   { key: "zamboni", nome: "Zamboni / Centro", lat: 44.4967, lng: 11.3518 },

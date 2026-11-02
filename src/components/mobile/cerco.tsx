@@ -65,11 +65,11 @@ export function BachecaCerco({
       <div style={css(`margin:4px 20px 0;border:2px solid ${C.ink};background:${C.carta};padding:20px`)}>
         <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em;line-height:1.15")}>Chi cerca stanza, in un posto solo.</div>
         <p style={css(`margin:8px 0 16px;font-size:14.5px;line-height:1.45;color:${C.testo}`)}>
-          Se hai una stanza libera, qui trovi gli studenti che la cercano: età, corso, zona, budget. La bacheca la vedono solo gli studenti UniBo.
+          Se hai una stanza libera, qui trovi gli studenti che la cercano: età, corso, zona, budget. La bacheca la vedono solo gli studenti.
         </p>
         <button type="button" onClick={onAccedi} style={css(`${BOTTONE.pieno};width:100%;display:flex;align-items:center;gap:10px;text-align:left`)}>
           <Icona nome="lucchetto" />
-          <span style={css("flex:1")}>Entra con la mail UniBo</span>
+          <span style={css("flex:1")}>Entra con la mail universitaria</span>
           <Icona nome="freccia" />
         </button>
       </div>
@@ -308,7 +308,7 @@ export function IlMioCerco({ userId, onChiudi, onTolto }: { userId: string; onCh
       ) : (
         <div className="sb-noscroll" style={css("flex:1;overflow:auto;padding:18px 20px 40px;display:flex;flex-direction:column;gap:14px")}>
           <p style={css(`margin:0;font-size:14.5px;line-height:1.45;color:${C.testo}`)}>
-            Lo vedono solo gli studenti UniBo. Di te compare solo quello che scrivi qui: il profilo resta privato.
+            Lo vedono solo gli studenti. Di te compare solo quello che scrivi qui: il profilo resta privato.
           </p>
 
           <Campo etichetta="Cosa cerchi, in due righe" aiuto={`${testo.length}/600`}>

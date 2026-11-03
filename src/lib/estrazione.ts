@@ -59,7 +59,7 @@ export type StanzaEstratta = z.infer<typeof StanzaEstratta>;
 /** Risposta dell'endpoint /api/estrai-annuncio. */
 export type RispostaEstrazione =
   | { ok: true; dati: AnnuncioEstratto }
-  | { ok: false; errore: string };
+  | { ok: false; errore: string; dettaglio?: string };
 
 export const LUNGHEZZA_MAX = 4000;
 

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/server";
 import { CONTRATTI, PREFERENZE_CASA, ZONE_BOLOGNA } from "@/lib/constants";
@@ -18,6 +19,8 @@ import { AnnuncioEstratto, LUNGHEZZA_MAX, ripulisci, type RispostaEstrazione } f
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const MODELLO = "claude-sonnet-5-5";
 
 const ISTRUZIONI = `Ricevi il testo di un annuncio per una stanza in affitto a Bologna, copiato da un gruppo WhatsApp o Telegram di studenti. Può essere in italiano o in inglese, pieno di emoji e maiuscole. Estrai i campi dello schema.
 
@@ -45,8 +48,10 @@ Zone possibili: ${ZONE_BOLOGNA.join(", ")}.
 Contratti possibili: ${CONTRATTI.join(", ")}.
 Preferenze possibili: ${PREFERENZE_CASA.map((p) => `${p.value} (${p.label})`).join(", ")}.`;
 
-function errore(status: number, messaggio: string) {
-  return NextResponse.json<RispostaEstrazione>({ ok: false, errore: messaggio }, { status });
+// dettaglio: il motivo tecnico (codice e tipo dell'errore dell'API), per capire
+// un guasto dal browser senza i log. L'app non lo mostra.
+function errore(status: number, messaggio: string, dettaglio?: string) {
+  return NextResponse.json<RispostaEstrazione>({ ok: false, errore: messaggio, dettaglio }, { status });
 }
 
 export async function POST(req: Request) {
@@ -83,23 +88,36 @@ export async function POST(req: Request) {
   // 4. il modello
   const oggi = new Date().toISOString().slice(0, 10);
   const client = new Anthropic();
+  const messages = [
+    { role: "user" as const, content: `Data di oggi: ${oggi}.\n\nAnnuncio:\n"""\n${testo}\n"""` },
+  ];
   try {
-    const risposta = await client.beta.messages.parse({
-      model: "claude-sonnet-5-5",
-      max_tokens: 8000,
-      // Estrazione semplice: poco ragionamento basta, e costa meno.
-      output_config: { effort: "low", format: betaZodOutputFormat(AnnuncioEstratto) },
-      // Se il modello rifiuta per un falso allarme, l'API riprova da sola con un altro modello.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: ISTRUZIONI,
-      messages: [
-        {
-          role: "user",
-          content: `Data di oggi: ${oggi}.\n\nAnnuncio:\n"""\n${testo}\n"""`,
-        },
-      ],
-    });
+    let risposta: { stop_reason: string | null; parsed_output?: AnnuncioEstratto | null };
+    try {
+      risposta = await client.beta.messages.parse({
+        model: MODELLO,
+        max_tokens: 8000,
+        // Estrazione semplice: poco ragionamento basta, e costa meno.
+        output_config: { effort: "low", format: betaZodOutputFormat(AnnuncioEstratto) },
+        // Se il modello rifiuta per un falso allarme, l'API riprova da sola con un altro modello.
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        system: ISTRUZIONI,
+        messages,
+      });
+    } catch (e) {
+      // 400 o 404: l'API non accetta un'impostazione della richiesta (beta,
+      // riserva). Si riprova una volta con la chiamata semplice, senza riserva.
+      if (!(e instanceof Anthropic.BadRequestError || e instanceof Anthropic.NotFoundError)) throw e;
+      console.error("estrai-annuncio: richiesta con riserva rifiutata", e.status, e.message);
+      risposta = await client.messages.parse({
+        model: MODELLO,
+        max_tokens: 8000,
+        output_config: { effort: "low", format: zodOutputFormat(AnnuncioEstratto) },
+        system: ISTRUZIONI,
+        messages,
+      });
+    }
 
     if (risposta.stop_reason === "refusal") {
       return errore(422, "Non riesco a leggere questo messaggio. Compila i campi a mano.");
@@ -115,7 +133,8 @@ export async function POST(req: Request) {
     }
     if (e instanceof Anthropic.APIError) {
       console.error("estrai-annuncio: errore API", e.status, e.message);
-      return errore(502, "La compilazione automatica non risponde. Riprova, o compila a mano.");
+      const dettaglio = `${e.status ?? "rete"} ${e.type ?? ""} ${e.message}`.slice(0, 300);
+      return errore(502, "La compilazione automatica non risponde. Riprova, o compila a mano.", dettaglio);
     }
     console.error("estrai-annuncio: errore inatteso", e);
     return errore(500, "Qualcosa non ha funzionato. Riprova, o compila a mano.");

@@ -9,7 +9,7 @@ import { giorniDa, quandoAggiornato } from "@/lib/types";
 import type { MobileAnnuncio } from "@/lib/annuncio-mobile";
 import { MappaBologna } from "./mappa-bologna";
 import { BOTTONE, C, EASE, TOKENS_CSS, css, dataBreve, euro } from "./stile";
-import { Avviso, Chip, Foglio, Freschezza, Icona, Segmenti, useSchermo } from "./ui";
+import { Avviso, Chip, Foglio, Freschezza, Icona, Segmenti, useSchermo, type NomeIcona } from "./ui";
 import { Quadratini, etichettaCamere, etichettaGenereCasa, riepilogoCoinq } from "./pezzi";
 import { Dettaglio, sfondoCasa } from "./dettaglio";
 import { Glossario } from "./glossario";
@@ -624,13 +624,13 @@ export function MobileApp({
     );
   };
 
-  const tabDefs: [Tab, string][] = [
-    ["scopri", "Scopri"],
-    ["cerca", "Cerca"],
-    ["mappa", "Mappa"],
-    ["salvati", "Salvati"],
-    ...(user && haCase ? [["case", "Le mie case"] as [Tab, string]] : []),
-    ["profilo", user ? "Profilo" : "Entra"],
+  const tabDefs: [Tab, string, NomeIcona][] = [
+    ["scopri", "Scopri", "carte"],
+    ["cerca", "Cerca", "lente"],
+    ["mappa", "Mappa", "mappa"],
+    ["salvati", "Salvati", "segnalibro"],
+    ...(user && haCase ? [["case", "Le mie case", "casa"] as [Tab, string, NomeIcona]] : []),
+    ["profilo", user ? "Profilo" : "Entra", "persona"],
   ];
 
   const stack = poolScopri.slice(0, 3);
@@ -692,7 +692,7 @@ export function MobileApp({
           .sb-tab{flex-direction:row!important;justify-content:flex-start!important;gap:14px!important;padding:10px 12px!important;min-height:48px}
           .sb-tab:hover{background:${C.sabbia}}
           .sb-tab>span:last-child{font-size:17px!important}
-          .sb-tab-segno{width:5px!important;height:24px!important}
+          .sb-tab[aria-current="page"]{background:${C.sabbia}}
           .sb-main{margin-left:232px}
           .sb-vista{max-width:860px;margin:0 auto;width:100%;padding-bottom:56px!important}
           .sb-vista-scopri{max-width:620px;margin:0 auto;width:100%}
@@ -1290,7 +1290,7 @@ export function MobileApp({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="SLEPBOLO" width={150} height={94} style={css("width:150px;height:auto;display:block")} />
             </div>
-            {tabDefs.map(([k, label]) => {
+            {tabDefs.map(([k, label, icona]) => {
               const on = tab === k;
               return (
                 <button
@@ -1302,9 +1302,12 @@ export function MobileApp({
                     setTab(k);
                     setDetail(null);
                   }}
-                  style={css("display:flex;flex-direction:column;align-items:center;gap:7px;background:transparent;border:0;padding:8px 0;min-height:52px;cursor:pointer;font-family:inherit")}
+                  style={css("display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;border:0;padding:6px 0;min-height:52px;cursor:pointer;font-family:inherit")}
                 >
-                  <span aria-hidden className="sb-tab-segno" style={css(`width:22px;height:4px;background:${on ? C.rosso : C.spento};transition:background .2s`)} />
+                  {/* la scheda attiva: icona rossa (e piena per i salvati), così si riconosce anche senza leggere */}
+                  <span aria-hidden className="sb-tab-icona" style={css(`color:${on ? C.rosso : C.grigio};transition:color .2s`)}>
+                    <Icona nome={icona} size={22} pieno={on && icona === "segnalibro"} />
+                  </span>
                   <span style={css(`font-size:12px;font-weight:${on ? 800 : 600};color:${on ? C.ink : C.grigio};letter-spacing:-.01em;line-height:1.1;text-align:center;padding:0 2px`)}>
                     {label}
                     {k === "salvati" && salvate.length ? ` · ${salvate.length}` : ""}

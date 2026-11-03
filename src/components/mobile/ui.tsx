@@ -36,6 +36,10 @@ const TRACCE: Record<string, ReactNode> = {
   domanda: <path d="M12 3a9 9 0 110 18 9 9 0 010-18zM9.5 9.5a2.5 2.5 0 115 0c0 1.8-2.5 2.2-2.5 4M12 16.5v.5" />,
   segnalibro: <path d="M6 3h12v18l-6-4.5L6 21z" />,
   lente: <path d="M10.5 4a6.5 6.5 0 110 13 6.5 6.5 0 010-13zM15.5 15.5L20 20" />,
+  // per le schede in basso
+  carte: <path d="M5 7h11v14H5zM8 7V3h11v14h-3" />,
+  mappa: <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14" />,
+  casa: <path d="M4 11l8-7 8 7M6 9.5V20h12V9.5M10 20v-6h4v6" />,
 };
 
 export type NomeIcona = keyof typeof TRACCE;

@@ -4,14 +4,14 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
 import { createClient, supabaseConfigurato } from "@/lib/supabase/server";
 import { CONTRATTI, PREFERENZE_CASA, ZONE_BOLOGNA } from "@/lib/constants";
-import { AnnuncioEstratto, LUNGHEZZA_MAX, ripulisci, type RispostaEstrazione } from "@/lib/estrazione";
+import { AnnuncioDalModello, LUNGHEZZA_MAX, ripulisci, type RispostaEstrazione } from "@/lib/estrazione";
 
 // ============================================================
 // "Incolla da WhatsApp": dal testo di un annuncio ai campi del modulo.
 //
 // - Solo chi è entrato con una mail universitaria, gli host abilitati e l'admin, massimo 20 al giorno a testa
 //   (funzione usa_estrazione nel database).
-// - Il modello deve rispondere nello schema AnnuncioEstratto: niente testo
+// - Il modello deve rispondere nello schema AnnuncioDalModello: niente testo
 //   libero da interpretare.
 // - Niente viene pubblicato da qui: il modulo si riempie e la persona
 //   controlla tutto prima di pubblicare.
@@ -24,17 +24,17 @@ const MODELLO = "claude-sonnet-5-5";
 
 const ISTRUZIONI = `Ricevi il testo di un annuncio per una stanza in affitto a Bologna, copiato da un gruppo WhatsApp o Telegram di studenti. Può essere in italiano o in inglese, pieno di emoji e maiuscole. Estrai i campi dello schema.
 
-Regola principale: riporta solo ciò che il testo dice. Se un'informazione non c'è, lascia null o un elenco vuoto. Non stimare prezzi, età, date o numeri di camere. Chi pubblica ricontrolla ogni campo, quindi un campo vuoto va bene e un campo inventato no.
+Regola principale: riporta solo ciò che il testo dice. Se un'informazione non c'è, lascia il campo vuoto: testo vuoto per le parole, 0 per i numeri, false per i sì/no, null per zona, contratto e genere, elenco vuoto per gli elenchi. Non stimare prezzi, età, date o numeri di camere. Chi pubblica ricontrolla ogni campo, quindi un campo vuoto va bene e un campo inventato no.
 
 Come leggere i casi frequenti:
-- Prezzo: è l'affitto mensile a persona (o a posto letto). "325 + 65 totale 390, compresi condominio, TARI e Wi-Fi" vuol dire prezzo_mensile 325, spese_incluse false, spese_mensili 65, spese_comprendono [Condominio, TARI, Wi-Fi]. "300 € bills included" vuol dire spese_incluse true. "spese escluse" senza cifra: spese_incluse false, spese_mensili null.
+- Prezzo: è l'affitto mensile a persona (o a posto letto). "325 + 65 totale 390, compresi condominio, TARI e Wi-Fi" vuol dire prezzo_mensile 325, spese_incluse false, spese_mensili 65, spese_comprendono [Condominio, TARI, Wi-Fi]. "300 € bills included" vuol dire spese_incluse true. "spese escluse" senza cifra: spese_incluse false, spese_mensili 0.
 - Stanze: una voce per ogni stanza libera. "Due posti letto in una camera doppia" è UNA stanza doppia con posti_liberi 2. "Due stanze singole" sono DUE stanze singole. "Posto letto in doppia" o "bed in a shared double room" è una doppia con posti_liberi 1. Se le stanze sono descritte insieme (stesso prezzo, stessa data), ripeti gli stessi valori per ognuna.
 - Date in formato AAAA-MM-GG, ricavate dalla data di oggi che ti viene data. "Da ottobre" = il primo giorno del prossimo ottobre (quest'anno se non è passato). "Da gennaio (o metà dicembre)": usa la prima data possibile, cioè il 15 dicembre, e scrivi il resto in nota. "Subito" o "già libera" = la data di oggi.
 - Zona: scegli una zona dell'elenco solo se il testo la nomina, o nomina una via, una piazza o un luogo noto che sta chiaramente lì (es. Piazza 8 Agosto → Centro storico, via Bergami / zona Saffi → Porta Saffi, ospedale Sant'Orsola → Massarenti). Se hai dubbi, null.
 - via: la via o piazza scritta nel testo, con il civico se c'è.
 - Contratto: "4+4" → "4+4"; "3+2" o "canone concordato" → "3+2 a canone concordato"; "contratto per studenti/universitario" → "Per studenti (6-36 mesi)"; "transitorio" → "Transitorio"; "subentro" → "Subentro". Se non è scritto, null. "Tramite agenzia" → tramite_agenzia true. "Senza contratto", "without contract", "in nero" → senza_contratto true.
 - Caparra: com'è scritta, breve ("1 mensilità", "2 mensilità + spese d'agenzia").
-- Coinquilini: solo chi ci abita già, una voce per persona. "In casa vivono già 3 ragazze" = tre voci con genere ragazza ed età null. "Una doppia con due ragazzi di 20 e 24 anni e una singola con una ragazza di 23" = tre voci con le loro età. Chi pubblica parla di sé ("vivo con…"): conta anche lui o lei solo se è chiaro che resta in casa.
+- Coinquilini: solo chi ci abita già, una voce per persona. "In casa vivono già 3 ragazze" = tre voci con genere ragazza ed età 0. "Una doppia con due ragazzi di 20 e 24 anni e una singola con una ragazza di 23" = tre voci con le loro età. Chi pubblica parla di sé ("vivo con…"): conta anche lui o lei solo se è chiaro che resta in casa.
 - genere_casa: "solo ragazze", "all girls", "stanza per ragazza" → ragazze; lo stesso per ragazzi; "ragazze/i", "studenti e studentesse" → misto. Altrimenti null.
 - preferenze: solo quelle scritte. "Solo studenti" → solo_studenti; "anche lavoratori" → lavoratori_ok; "coppie" → coppie_ok; "due persone che si conoscono", "amici" → amici_ok; "che parlino italiano" → italiano; "English ok" → english_ok; "no affitti brevi" → no_brevi.
 - servizi: solo quelli elencati nello schema e nominati nel testo.
@@ -92,13 +92,13 @@ export async function POST(req: Request) {
     { role: "user" as const, content: `Data di oggi: ${oggi}.\n\nAnnuncio:\n"""\n${testo}\n"""` },
   ];
   try {
-    let risposta: { stop_reason: string | null; parsed_output?: AnnuncioEstratto | null };
+    let risposta: { stop_reason: string | null; parsed_output?: AnnuncioDalModello | null };
     try {
       risposta = await client.beta.messages.parse({
         model: MODELLO,
         max_tokens: 8000,
         // Estrazione semplice: poco ragionamento basta, e costa meno.
-        output_config: { effort: "low", format: betaZodOutputFormat(AnnuncioEstratto) },
+        output_config: { effort: "low", format: betaZodOutputFormat(AnnuncioDalModello) },
         // Se il modello rifiuta per un falso allarme, l'API riprova da sola con un altro modello.
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
       risposta = await client.messages.parse({
         model: MODELLO,
         max_tokens: 8000,
-        output_config: { effort: "low", format: zodOutputFormat(AnnuncioEstratto) },
+        output_config: { effort: "low", format: zodOutputFormat(AnnuncioDalModello) },
         system: ISTRUZIONI,
         messages,
       });

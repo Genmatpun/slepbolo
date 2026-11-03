@@ -5,8 +5,9 @@ import { CONTRATTI, PREFERENZE_CASA, SERVIZI_CASA, SPESE_VOCI, ZONE_BOLOGNA } fr
 // Cosa si ricava da un annuncio incollato da WhatsApp.
 //
 // Ogni campo può restare vuoto: meglio un buco che l'utente riempie,
-// che un dato inventato che finisce online. Lo schema lo impone anche
-// al modello (output strutturato), e dopo lo ricontrolliamo noi.
+// che un dato inventato che finisce online. Il modello risponde nello
+// schema AnnuncioDalModello (output strutturato), poi ripulisci() lo
+// ricontrolla e lo porta in AnnuncioEstratto, quello che riceve l'app.
 // ============================================================
 
 const nullabile = <T extends z.ZodType>(t: T) => t.nullable();
@@ -56,6 +57,54 @@ export const AnnuncioEstratto = z.object({
 export type AnnuncioEstratto = z.infer<typeof AnnuncioEstratto>;
 export type StanzaEstratta = z.infer<typeof StanzaEstratta>;
 
+// Lo schema che riempie il modello. L'API accetta pochi campi «valore oppure
+// null» (con 25 rifiutava la richiesta), quindi qui un dato mancante è un
+// testo vuoto o uno 0, e un sì/no non detto è false. Restano «oppure null»
+// solo le quattro scelte da elenco. ripulisci() riporta i vuoti a null.
+const StanzaDalModello = z.object({
+  tipo: z.enum(["singola", "doppia"]),
+  posti_liberi: z.number().int(),
+  prezzo_mensile: z.number().int(),
+  spese_incluse: z.boolean(),
+  spese_mensili: z.number().int(),
+  spese_comprendono: z.array(z.enum(SPESE_VOCI)),
+  disponibile_dal: z.string(),
+  disponibile_fino: z.string(),
+  permanenza_minima_mesi: z.number().int(),
+  nota: z.string(),
+});
+
+export const AnnuncioDalModello = z.object({
+  titolo: z.string(),
+  zona: nullabile(z.enum(ZONE_BOLOGNA)),
+  via: z.string(),
+  piano: z.string(),
+  bagni: z.number().int(),
+  camere_totali: z.number().int(),
+  genere_casa: nullabile(z.enum(["ragazze", "ragazzi", "misto", "indifferente"])),
+  stanze: z.array(StanzaDalModello),
+  contratto: nullabile(z.enum(CONTRATTI)),
+  tramite_agenzia: z.boolean(),
+  senza_contratto: z.boolean(),
+  caparra: z.string(),
+  coinquilini: z.array(
+    z.object({
+      genere: nullabile(z.enum(["ragazza", "ragazzo", "altro"])),
+      eta: z.number().int(),
+      corso: z.string(),
+    }),
+  ),
+  servizi: z.array(z.enum(SERVIZI_CASA)),
+  preferenze: z.array(z.enum(PREFERENZE_CASA.map((p) => p.value) as [string, ...string[]])),
+  vicino_a: z.string(),
+  link_foto: z.string(),
+  descrizione: z.string(),
+  contatto_nome: z.string(),
+  contatto_telefono: z.string(),
+});
+
+export type AnnuncioDalModello = z.infer<typeof AnnuncioDalModello>;
+
 /** Risposta dell'endpoint /api/estrai-annuncio. */
 export type RispostaEstrazione =
   | { ok: true; dati: AnnuncioEstratto }
@@ -67,9 +116,10 @@ const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Secondo controllo, dopo il modello: numeri in intervalli sensati, date
- * nel formato giusto, link solo https. Quello che non torna diventa null.
+ * nel formato giusto, link solo https. Quello che non torna diventa null,
+ * come i campi lasciati vuoti (testo vuoto, 0).
  */
-export function ripulisci(d: AnnuncioEstratto): AnnuncioEstratto {
+export function ripulisci(d: AnnuncioDalModello): AnnuncioEstratto {
   const tra = (n: number | null, min: number, max: number) => (n != null && n >= min && n <= max ? n : null);
   const data = (s: string | null) => (s && DATA.test(s) ? s : null);
   const corto = (s: string | null, max: number) => (s ? s.trim().slice(0, max) || null : null);

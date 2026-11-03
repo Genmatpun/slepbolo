@@ -61,16 +61,23 @@ export interface Housemate {
   stato: string;
   /** Scadenza dell'invito (solo per stato "in_attesa"). */
   scadenza_invito: string | null;
+  /** Invito in attesa: il coinquilino descritto a mano che questa persona è (sparisce se accetta). */
+  sostituisce?: string | null;
 }
 
-/** Coinquilini da mostrare pubblicamente: confermati + inviti non ancora scaduti. */
+/**
+ * Coinquilini da mostrare pubblicamente: confermati + inviti non ancora scaduti.
+ * Un invito valido nasconde la descrizione a mano della stessa persona: nessuno compare due volte.
+ */
 export function coinquiliniVisibili(housemates: Housemate[]): Housemate[] {
   const ora = Date.now();
-  return housemates.filter(
+  const visibili = housemates.filter(
     (h) =>
       h.stato === "confermato" ||
       (h.stato === "in_attesa" && h.scadenza_invito != null && new Date(h.scadenza_invito).getTime() > ora),
   );
+  const sostituiti = new Set(visibili.map((h) => h.sostituisce).filter((x): x is string => !!x));
+  return visibili.filter((h) => !sostituiti.has(h.id));
 }
 
 /**

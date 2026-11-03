@@ -54,10 +54,27 @@ interface StanzaForm {
 interface CoinqForm {
   /** chiave locale, come per le stanze */
   k: string;
+  /** id della riga nel database (in modifica): salvando la si aggiorna, così un invito che la sostituisce non perde il collegamento */
+  id?: string | null;
+  /** è chi sta pubblicando ("Ci abiti anche tu?") */
+  tu?: boolean;
+  /** "" = non ancora scelto */
   genere: string;
   eta: string;
   corso: string;
   abitudini: string[];
+}
+
+/** Un coinquilino già iscritto e collegato all'annuncio (invitato o confermato): si vede, non si modifica da qui. */
+interface Iscritto {
+  id: string;
+  genere: string | null;
+  eta: number | null;
+  corso: string | null;
+  confermato: boolean;
+  scadenza: string | null;
+  /** id del coinquilino descritto che prenderà il posto, se accetta */
+  sostituisce: string | null;
 }
 
 const chiaveLocale = () => Math.random().toString(36).slice(2, 10);
@@ -78,7 +95,8 @@ const nuovaStanza = (): StanzaForm => ({
   nota: "",
 });
 
-const nuovoCoinquilino = (): CoinqForm => ({ k: chiaveLocale(), genere: "ragazza", eta: "", corso: "", abitudini: [] });
+// il genere parte vuoto: preimpostato, chi va di fretta lascia «Ragazza» anche per un ragazzo
+const nuovoCoinquilino = (): CoinqForm => ({ k: chiaveLocale(), genere: "", eta: "", corso: "", abitudini: [] });
 
 const PASSI = ["Inizia", "La casa", "Le stanze", "Chi ci abita", "Condizioni", "Contatti", "Controlla"] as const;
 const ULTIMO = PASSI.length - 1;
@@ -129,6 +147,8 @@ interface DatiBozza {
   stanze: StanzaForm[];
   coinq: CoinqForm[];
   inviti: string[];
+  /** mail invitata -> chiave del coinquilino descritto che quella persona è */
+  sostituzioni?: Record<string, string>;
   titolo: string;
   titoloToccato: boolean;
   contratto: string;
@@ -212,7 +232,8 @@ function stanzaDaBozza(s: Partial<StanzaForm>): StanzaForm {
 }
 
 function coinqDaBozza(c: Partial<CoinqForm>): CoinqForm {
-  return { ...nuovoCoinquilino(), genere: testo(c.genere) || "ragazza", eta: testo(c.eta), corso: testo(c.corso), abitudini: lista(c.abitudini) };
+  // la chiave resta la stessa: gli inviti collegati la ritrovano
+  return { ...nuovoCoinquilino(), k: testo(c.k) || chiaveLocale(), tu: !!c.tu, genere: testo(c.genere), eta: testo(c.eta), corso: testo(c.corso), abitudini: lista(c.abitudini) };
 }
 
 /** "oggi alle 14:32" · "ieri alle 9:05" · "il 3 ottobre". */
@@ -280,6 +301,7 @@ export function Pubblica({
   modificaId,
   onChiudi,
   onVedi,
+  onLeMieCase,
 }: {
   userId: string;
   modificaId: string | null;
@@ -287,6 +309,8 @@ export function Pubblica({
   onChiudi: (pubblicato: boolean) => void;
   /** Se c'è, a cose fatte compare «Vedi l'annuncio»: chi lo riceve chiude il modulo e apre la casa. */
   onVedi?: (apartmentId: string) => void;
+  /** A cose fatte: chiude il modulo e porta a «Le mie case», dove l'annuncio si tiene aggiornato. */
+  onLeMieCase?: () => void;
 }) {
   const modifica = !!modificaId;
   const primoPasso = modifica || !INCOLLA_ATTIVO ? 1 : 0;
@@ -319,6 +343,12 @@ export function Pubblica({
   // coinquilini
   const [coinq, setCoinq] = useState<CoinqForm[]>([]);
   const [inviti, setInviti] = useState<string[]>([]);
+  /** mail invitata -> chiave del coinquilino descritto che quella persona è: quando accetta, prende il suo posto */
+  const [sostituzioni, setSostituzioni] = useState<Record<string, string>>({});
+  /** in modifica: chi è già iscritto e collegato alla casa */
+  const [iscritti, setIscritti] = useState<Iscritto[]>([]);
+  /** «Ci abiti anche tu?» (solo per un annuncio nuovo) */
+  const [abitiAnche, setAbitiAnche] = useState<"" | "si" | "no">("");
   const [mailInvito, setMailInvito] = useState("");
   const [erroreInvito, setErroreInvito] = useState<string | null>(null);
   const [abitPer, setAbitPer] = useState<number | null>(null);
@@ -453,7 +483,22 @@ export function Pubblica({
       setCoinq(
         d.housemates
           .filter((h) => !h.profile_id)
-          .map((h) => ({ k: chiaveLocale(), genere: h.genere ?? "ragazza", eta: h.eta ? String(h.eta) : "", corso: h.corso ?? "", abitudini: h.abitudini ?? [] })),
+          .map((h) => ({ k: chiaveLocale(), id: h.id, genere: h.genere ?? "", eta: h.eta ? String(h.eta) : "", corso: h.corso ?? "", abitudini: h.abitudini ?? [] })),
+      );
+      // gli iscritti si vedono qui: senza, chi modifica non si accorge di averli anche descritti
+      const ora = Date.now();
+      setIscritti(
+        d.housemates
+          .filter((h) => h.profile_id && (h.stato === "confermato" || (h.scadenza_invito && new Date(h.scadenza_invito).getTime() > ora)))
+          .map((h) => ({
+            id: h.id,
+            genere: h.genere,
+            eta: h.eta,
+            corso: h.corso,
+            confermato: h.stato === "confermato",
+            scadenza: h.scadenza_invito,
+            sostituisce: h.sostituisce ?? null,
+          })),
       );
       const priv = p.data as AnnuncioPrivato | null;
       if (priv) {
@@ -510,6 +555,7 @@ export function Pubblica({
     stanze,
     coinq,
     inviti,
+    sostituzioni,
     titolo,
     titoloToccato,
     contratto,
@@ -567,8 +613,16 @@ export function Pubblica({
     setServizi(lista(d.servizi));
     const s = oggetti<StanzaForm>(d.stanze).map(stanzaDaBozza);
     setStanze(s.length ? s : [nuovaStanza()]);
-    setCoinq(oggetti<CoinqForm>(d.coinq).map(coinqDaBozza));
-    setInviti(lista(d.inviti));
+    const cq = oggetti<CoinqForm>(d.coinq).map(coinqDaBozza);
+    setCoinq(cq);
+    if (cq.some((c) => c.tu)) setAbitiAnche("si");
+    const inv = lista(d.inviti);
+    setInviti(inv);
+    // si tengono solo i collegamenti che puntano ancora a un invito e a un coinquilino della bozza
+    const sost = d.sostituzioni && typeof d.sostituzioni === "object" ? d.sostituzioni : {};
+    setSostituzioni(
+      Object.fromEntries(Object.entries(sost).filter(([em, k]) => inv.includes(em) && typeof k === "string" && cq.some((c) => c.k === k))),
+    );
     setTitolo(testo(d.titolo));
     setTitoloToccato(!!d.titoloToccato);
     setContratto(testo(d.contratto));
@@ -651,7 +705,7 @@ export function Pubblica({
     if (d.camere_totali) setTot(String(d.camere_totali));
     else if (d.stanze.length) setTot(String(Math.max(d.stanze.length + residenti, d.stanze.length + 1)));
     if (residenti) {
-      setCoinq(d.coinquilini.map((c) => ({ ...nuovoCoinquilino(), genere: c.genere ?? "altro", eta: c.eta ? String(c.eta) : "", corso: c.corso ?? "" })));
+      setCoinq(d.coinquilini.map((c) => ({ ...nuovoCoinquilino(), genere: c.genere ?? "", eta: c.eta ? String(c.eta) : "", corso: c.corso ?? "" })));
     }
     if (d.contratto) setContratto(d.contratto);
     setAgenzia(!!d.tramite_agenzia);
@@ -710,10 +764,12 @@ export function Pubblica({
       });
     }
     if (p === 3) {
+      if (!modifica && !abitiAnche) no("abiti", "Dicci se ci abiti anche tu.");
       coinq.forEach((c) => {
+        if (!c.genere) no(`coinq-${c.k}-genere`, "Scegli ragazza, ragazzo o altro.");
         if (c.eta && (Number(c.eta) < 16 || Number(c.eta) > 99)) no(`coinq-${c.k}-eta`, "L'età va da 16 a 99 anni.");
       });
-      if (mailInvito.trim()) no("invito", "Hai scritto una mail ma non l'hai aggiunta: tocca «Invita», oppure cancellala.");
+      if (mailInvito.trim()) no("invito", "Hai scritto una mail ma non l'hai aggiunta: tocca «Aggiungi invito», oppure cancellala.");
     }
     if (p === 4) {
       if (!titoloFinale.trim()) no("titolo", "Dai un titolo all'annuncio.");
@@ -776,6 +832,37 @@ export function Pubblica({
   function esci() {
     setUscita(null);
     onChiudi(!!creatoId);
+  }
+
+  // ---------- chi pubblica ci abita? ----------
+  async function scegliAbitiAnche(v: "" | "si" | "no") {
+    setAbitiAnche(v);
+    if (v !== "si") {
+      setCoinq((cs) => cs.filter((c) => !c.tu));
+      return;
+    }
+    if (coinq.some((c) => c.tu)) return;
+    const tu: CoinqForm = { ...nuovoCoinquilino(), tu: true };
+    setCoinq((cs) => [tu, ...cs]);
+    setMira({ campo: `coinq-${tu.k}` });
+    // i dati del profilo, se ci sono: la scheda si può cambiare lo stesso
+    if (!supabaseConfigurato()) return;
+    const { data } = await createClient().from("profiles").select("genere, eta, corso_laurea, abitudini").eq("id", userId).maybeSingle();
+    if (!data) return;
+    const genereProfilo = data.genere === "ragazza" || data.genere === "ragazzo" || data.genere === "altro" ? (data.genere as string) : "";
+    setCoinq((cs) =>
+      cs.map((c) =>
+        c.k !== tu.k
+          ? c
+          : {
+              ...c,
+              genere: c.genere || genereProfilo,
+              eta: c.eta || (data.eta ? String(data.eta) : ""),
+              corso: c.corso || ((data.corso_laurea as string | null) ?? ""),
+              abitudini: c.abitudini.length ? c.abitudini : ((data.abitudini as string[] | null) ?? []),
+            },
+      ),
+    );
   }
 
   // ---------- coinquilini invitati ----------
@@ -953,39 +1040,56 @@ export function Pubblica({
     // Da qui niente ferma più la pubblicazione (riprovare aggiungerebbe le stanze
     // due volte): quello che non riesce lo dico alla fine.
 
-    // coinquilini descritti a mano (quelli invitati e confermati restano)
+    // coinquilini descritti a mano (quelli invitati e confermati restano).
+    // Quelli che c'erano si aggiornano al loro posto: un invito che li sostituisce non perde il collegamento.
     let coinquiliniSalvati = true;
+    /** chiave locale -> id nel database */
+    const idDi = new Map<string, string>();
+    const datiCoinq = (c: CoinqForm) => ({
+      genere: c.genere || "altro",
+      eta: c.eta ? Number(c.eta) : null,
+      corso: c.corso.trim() || null,
+      abitudini: c.abitudini,
+    });
     try {
       if (modificaId) {
-        const { error } = await supabase.from("housemates").delete().eq("apartment_id", aptId).is("profile_id", null);
+        const tenuti = coinq.map((c) => c.id).filter((x): x is string => !!x);
+        let tolti = supabase.from("housemates").delete().eq("apartment_id", aptId).is("profile_id", null);
+        if (tenuti.length) tolti = tolti.not("id", "in", `(${tenuti.join(",")})`);
+        const { error } = await tolti;
         if (error) coinquiliniSalvati = false;
+        for (const c of coinq) {
+          if (!c.id) continue;
+          const { error: e } = await supabase.from("housemates").update(datiCoinq(c)).eq("id", c.id);
+          if (e) coinquiliniSalvati = false;
+          else idDi.set(c.k, c.id);
+        }
       }
-      if (coinquiliniSalvati && coinq.length) {
-        const { error } = await supabase.from("housemates").insert(
-          coinq.map((c) => ({
-            apartment_id: aptId,
-            nome_visualizzato: null,
-            genere: c.genere,
-            eta: c.eta ? Number(c.eta) : null,
-            corso: c.corso.trim() || null,
-            abitudini: c.abitudini,
-          })),
-        );
+      const nuoviC = coinq.filter((c) => !c.id);
+      if (coinquiliniSalvati && nuoviC.length) {
+        const { data, error } = await supabase
+          .from("housemates")
+          .insert(nuoviC.map((c) => ({ apartment_id: aptId, nome_visualizzato: null, ...datiCoinq(c) })))
+          .select("id");
         if (error) coinquiliniSalvati = false;
+        else (data ?? []).forEach((r, i) => nuoviC[i] && idDi.set(nuoviC[i].k, r.id as string));
       }
     } catch {
       coinquiliniSalvati = false;
     }
     if (!coinquiliniSalvati) avvisi.push(`Non sono riuscito a salvare chi ci abita. Aggiungilo di nuovo ${daModifica}.`);
 
-    // inviti
+    // inviti: se l'invitato è una persona già descritta, quando accetta ne prende il posto
     const nonIscritti: string[] = [];
     const nonInvitati: string[] = [];
     for (const em of inviti) {
+      const sost = sostituzioni[em] ? idDi.get(sostituzioni[em]) ?? null : null;
       try {
-        const { data, error } = await supabase.rpc("invita_coinquilino", { p_apartment: aptId, p_email: em });
-        if (error) nonInvitati.push(em);
-        else if (data && data !== "ok" && data !== "gia_presente") nonIscritti.push(em);
+        let r = await supabase.rpc("invita_coinquilino", sost ? { p_apartment: aptId, p_email: em, p_sostituisce: sost } : { p_apartment: aptId, p_email: em });
+        // il database non ha ancora il collegamento: l'invito parte lo stesso, senza
+        if (r.error && sost) r = await supabase.rpc("invita_coinquilino", { p_apartment: aptId, p_email: em });
+        if (r.error) nonInvitati.push(em);
+        else if (r.data && r.data !== "ok" && r.data !== "gia_presente") nonIscritti.push(em);
       } catch {
         nonInvitati.push(em);
       }
@@ -1043,8 +1147,9 @@ export function Pubblica({
           </h2>
           {inRicerca ? (
             <p style={css(`margin:0;font-size:15.5px;line-height:1.5;color:${C.testo}`)}>
-              Chi cerca casa lo vede da subito. <b>Ogni tanto conferma che è ancora libera</b> da &laquo;Le mie case&raquo;:
-              un annuncio non confermato da 30 giorni sparisce dalla ricerca, così nessuno ti scrive per una stanza già presa.
+              Chi cerca casa lo vede da subito. Resta online 30 giorni: nell&apos;ultima settimana, in &laquo;Le mie case&raquo;, compare{" "}
+              <b>&laquo;Confermo: è ancora libera&raquo;</b>. Un tocco e resta online altri 30 giorni; senza conferma sparisce dalla ricerca, così
+              nessuno ti scrive per una stanza già presa.
             </p>
           ) : (
             <p style={css(`margin:0;font-size:15.5px;line-height:1.5;color:${C.testo}`)}>
@@ -1109,8 +1214,12 @@ export function Pubblica({
               )}
             </>
           )}
-          <button type="button" onClick={() => onChiudi(true)} style={css(`${inRicerca ? BOTTONE.contorno : BOTTONE.scuro};width:100%;flex:none`)}>
-            Torna all&apos;app
+          <button
+            type="button"
+            onClick={() => (onLeMieCase ? onLeMieCase() : onChiudi(true))}
+            style={css(`${inRicerca ? BOTTONE.contorno : BOTTONE.scuro};width:100%;flex:none`)}
+          >
+            {onLeMieCase ? <>Vai a &laquo;Le mie case&raquo;</> : <>Torna all&apos;app</>}
           </button>
         </div>
       </Guscio>
@@ -1275,7 +1384,7 @@ export function Pubblica({
                   errore={err("via")}
                   aiuto={
                     sonoHost
-                      ? "Non la vede nessuno nella ricerca: sulla mappa la casa compare in una zona approssimata. La via la vede solo chi ti contatta."
+                      ? "Nella ricerca e sulla mappa compare solo la zona. La via, come i tuoi contatti, la vede solo chi è entrato con una mail universitaria."
                       : "La via la gestisce chi ha pubblicato l'annuncio."
                   }
                   value={via}
@@ -1387,35 +1496,102 @@ export function Pubblica({
                 <p style={css(paragrafo)}>
                   È la cosa che chi cerca guarda per prima. Nessun nome: solo genere, età, corso e abitudini.
                 </p>
-                {coinq.map((c, i) => (
+
+                {/* chi pubblica di solito ci abita: va chiesto, non dato per scontato */}
+                {!modifica && (
+                  <div data-campo="abiti" tabIndex={-1} style={css("display:flex;flex-direction:column;gap:8px;outline:none")}>
+                    <div id="sb-abiti" style={css("font-size:15px;font-weight:900")}>
+                      Ci abiti anche tu?
+                    </div>
+                    <Segmenti
+                      etichetta="Ci abiti anche tu?"
+                      valore={abitiAnche}
+                      opzioni={[
+                        { value: "si", label: "Sì, ci abito" },
+                        { value: "no", label: "No" },
+                      ]}
+                      onChange={scegliAbitiAnche}
+                    />
+                    {err("abiti") && <MessaggioErrore id="sb-abiti-errore">{err("abiti")}</MessaggioErrore>}
+                  </div>
+                )}
+
+                {/* in modifica: chi è già iscritto. Senza, non ci si accorge di averlo anche descritto */}
+                {iscritti.length > 0 && (
+                  <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                    <div style={css(`font-size:13px;font-weight:800;color:${C.grigio}`)}>Già su SLEPBOLO</div>
+                    {iscritti.map((p) => (
+                      <div key={p.id} style={css(`border:2px solid ${C.linea};background:${C.carta};padding:12px 14px;display:flex;flex-direction:column;gap:3px`)}>
+                        <span style={css("font-size:15px;font-weight:900")}>
+                          {personaCoinquilino(p.genere).label}
+                          {p.eta ? `, ${p.eta} anni` : ""}
+                          {p.corso ? ` · ${p.corso}` : ""}
+                        </span>
+                        <span style={css(`font-size:13.5px;line-height:1.4;color:${p.confermato ? C.verdeTesto : C.ambraTesto};font-weight:700`)}>
+                          {p.confermato
+                            ? "Ha confermato: compare con il suo profilo."
+                            : `Invitato: deve confermare dal suo Profilo entro il ${dataBreve(p.scadenza)}. Diglielo tu, l'app non gli manda avvisi.`}
+                        </span>
+                      </div>
+                    ))}
+                    {iscritti.some((p) => p.confermato) && coinq.length > 0 && (
+                      <span style={css(`font-size:13.5px;line-height:1.4;color:${C.testo}`)}>
+                        Se una di queste persone è anche descritta qui sotto, togli la descrizione: altrimenti nell&apos;annuncio compare due volte.
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {coinq.map((c, i) => {
+                  const invitoInArrivo = c.id ? iscritti.find((p) => !p.confermato && p.sostituisce === c.id) : undefined;
+                  const nome = c.tu ? "Coinquilino: tu" : `Coinquilino ${i + 1}`;
+                  return (
                   <div
                     key={c.k}
                     role="group"
-                    aria-label={`Coinquilino ${i + 1}`}
+                    aria-label={nome}
                     data-campo={`coinq-${c.k}`}
                     tabIndex={-1}
                     style={css(`border:2px solid ${C.ink};background:${C.carta};padding:14px;display:flex;flex-direction:column;gap:12px;outline:none`)}
                   >
                     <div style={css("display:flex;align-items:center;gap:10px")}>
                       <h2 style={css("margin:0;font-size:15px;font-weight:900;flex:1")}>
-                        {personaCoinquilino(c.genere).label}
+                        {c.tu ? "Tu · " : ""}
+                        {c.genere ? personaCoinquilino(c.genere).label : "Coinquilino"}
                         {c.eta ? `, ${c.eta} anni` : ""}
                       </h2>
                       <button
                         type="button"
-                        aria-label={`Togli il coinquilino ${i + 1}`}
-                        onClick={() => setCoinq(coinq.filter((x) => x.k !== c.k))}
+                        aria-label={c.tu ? "Togli te stesso da chi ci abita" : `Togli il coinquilino ${i + 1}`}
+                        onClick={() => {
+                          setCoinq(coinq.filter((x) => x.k !== c.k));
+                          if (c.tu) setAbitiAnche("no");
+                          setSostituzioni((s) => Object.fromEntries(Object.entries(s).filter(([, k]) => k !== c.k)));
+                        }}
                         style={css(`width:44px;height:44px;border:0;background:transparent;color:${C.rosso};display:grid;place-items:center;cursor:pointer`)}
                       >
                         <Icona nome="cestino" size={18} />
                       </button>
                     </div>
-                    <Segmenti
-                      etichetta={`Genere del coinquilino ${i + 1}`}
-                      valore={c.genere as "ragazza" | "ragazzo" | "altro"}
-                      opzioni={GENERI_COINQUILINO}
-                      onChange={(v) => setCoinq(coinq.map((x) => (x.k === c.k ? { ...x, genere: v } : x)))}
-                    />
+                    {c.tu && (
+                      <span style={css(`margin-top:-6px;font-size:13.5px;line-height:1.4;color:${C.grigio}`)}>
+                        Presi dal tuo profilo, se c&apos;erano: puoi cambiarli qui.
+                      </span>
+                    )}
+                    {invitoInArrivo && (
+                      <span style={css(`margin-top:-6px;font-size:13.5px;line-height:1.4;font-weight:700;color:${C.ambraTesto}`)}>
+                        Hai invitato questa persona: quando conferma, la descrizione lascia il posto al suo profilo.
+                      </span>
+                    )}
+                    <div data-campo={`coinq-${c.k}-genere`} tabIndex={-1} style={css("display:flex;flex-direction:column;gap:6px;outline:none")}>
+                      <Segmenti
+                        etichetta={c.tu ? "Il tuo genere" : `Genere del coinquilino ${i + 1}`}
+                        valore={c.genere as "" | "ragazza" | "ragazzo" | "altro"}
+                        opzioni={GENERI_COINQUILINO}
+                        onChange={(v) => setCoinq(coinq.map((x) => (x.k === c.k ? { ...x, genere: v } : x)))}
+                      />
+                      {err(`coinq-${c.k}-genere`) && <MessaggioErrore id={`coinq-${c.k}-genere-errore`}>{err(`coinq-${c.k}-genere`)}</MessaggioErrore>}
+                    </div>
                     <div style={css("display:grid;grid-template-columns:90px 1fr;gap:10px")}>
                       <TestoVerificato
                         etichetta="Età"
@@ -1442,7 +1618,8 @@ export function Pubblica({
                       <Icona nome="avanti" size={18} />
                     </button>
                   </div>
-                ))}
+                  );
+                })}
                 <button
                   type="button"
                   onClick={() => {
@@ -1453,27 +1630,66 @@ export function Pubblica({
                   style={css(`${BOTTONE.contorno};width:100%;display:flex;align-items:center;justify-content:center;gap:8px`)}
                 >
                   <Icona nome="piu" size={18} />
-                  Aggiungi chi ci abita
+                  {coinq.some((c) => !c.tu) ? "Aggiungi un altro coinquilino" : "Aggiungi un coinquilino"}
                 </button>
 
                 <div style={css(`border-top:2px solid ${C.linea};padding-top:16px;display:flex;flex-direction:column;gap:10px`)}>
-                  <h2 style={css("margin:0;font-size:15px;font-weight:900")}>Il coinquilino è già su SLEPBOLO?</h2>
+                  <h2 style={css("margin:0;font-size:15px;font-weight:900")}>Un coinquilino è già su SLEPBOLO?</h2>
                   <p style={css(`margin:0;font-size:14px;line-height:1.45;color:${C.testo}`)}>
-                    Invitalo con la sua mail UniBo: compare con i dati del suo profilo e conferma entro 24 ore. È più credibile di una descrizione.
+                    Aggiungi la sua mail universitaria: nell&apos;annuncio compare con i dati del suo profilo, che è più credibile di una descrizione.
+                    Deve essere già iscritto e confermare dal suo Profilo entro 24 ore. L&apos;app non gli manda avvisi: diglielo tu.
                   </p>
-                  {inviti.map((em) => (
-                    <div key={em} style={css(`display:flex;align-items:center;gap:8px;border:2px solid ${C.bordo};padding:0 0 0 12px;font-size:14px;font-weight:700`)}>
-                      <span style={css("flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis")}>{em}</span>
-                      <button
-                        type="button"
-                        aria-label={`Togli l'invito a ${em}`}
-                        onClick={() => setInviti(inviti.filter((x) => x !== em))}
-                        style={css(`width:44px;height:44px;flex:none;border:0;background:transparent;color:${C.ink};display:grid;place-items:center;cursor:pointer`)}
-                      >
-                        <Icona nome="chiudi" size={16} />
-                      </button>
-                    </div>
-                  ))}
+                  {inviti.map((em) => {
+                    const descritti = coinq.filter((c) => !c.tu);
+                    return (
+                      <div key={em} style={css(`border:2px solid ${C.bordo};background:${C.carta}`)}>
+                        <div style={css("display:flex;align-items:center;gap:8px;padding:0 0 0 12px;font-size:14px;font-weight:700")}>
+                          <span style={css("flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis")}>{em}</span>
+                          <button
+                            type="button"
+                            aria-label={`Togli l'invito a ${em}`}
+                            onClick={() => {
+                              setInviti(inviti.filter((x) => x !== em));
+                              setSostituzioni((s) => Object.fromEntries(Object.entries(s).filter(([m]) => m !== em)));
+                            }}
+                            style={css(`width:44px;height:44px;flex:none;border:0;background:transparent;color:${C.ink};display:grid;place-items:center;cursor:pointer`)}
+                          >
+                            <Icona nome="chiudi" size={16} />
+                          </button>
+                        </div>
+                        {descritti.length > 0 && (
+                          <div style={css(`padding:0 12px 12px`)}>
+                            <Campo etichetta="È una delle persone descritte sopra?" aiuto="Se sì, quando conferma prende il suo posto: nell'annuncio non compare due volte.">
+                              {(id, d) => (
+                                <select
+                                  id={id}
+                                  aria-describedby={d}
+                                  value={sostituzioni[em] ?? ""}
+                                  onChange={(e) => {
+                                    const k = e.target.value;
+                                    setSostituzioni((s) => {
+                                      const n = { ...s };
+                                      if (k) n[em] = k;
+                                      else delete n[em];
+                                      return n;
+                                    });
+                                  }}
+                                  style={css(CAMPO)}
+                                >
+                                  <option value="">No, è un&apos;altra persona</option>
+                                  {descritti.map((c) => (
+                                    <option key={c.k} value={c.k}>
+                                      {`Coinquilino ${coinq.indexOf(c) + 1}: ${c.genere ? personaCoinquilino(c.genere).label.toLowerCase() : "genere da scegliere"}${c.eta ? `, ${c.eta} anni` : ""}${c.corso.trim() ? `, ${c.corso.trim()}` : ""}`}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </Campo>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   <CampoVerificato etichetta="Mail universitaria del coinquilino" campo="invito" errore={erroreInvito ?? err("invito")}>
                     {(attr, stile) => (
                       <div style={css("display:flex;gap:8px")}>
@@ -1495,7 +1711,7 @@ export function Pubblica({
                           style={css(`${stile};flex:1;min-width:0`)}
                         />
                         <button type="button" onClick={invita} style={css(`${BOTTONE.scuro};height:48px;flex:none`)}>
-                          Invita
+                          Aggiungi invito
                         </button>
                       </div>
                     )}
@@ -1661,7 +1877,10 @@ export function Pubblica({
               <>
                 <div style={css(`display:flex;gap:10px;background:${C.sabbia};padding:12px 14px;font-size:14px;line-height:1.45`)}>
                   <Icona nome="lucchetto" size={18} />
-                  <span>I contatti li vedono <b>solo gli studenti UniBo</b> entrati con la mail istituzionale. Niente agenzie, niente sconosciuti.</span>
+                  <span>
+                    Contatti e via li vede <b>solo chi è entrato con una mail universitaria</b> (UniBo, UniPR, UniFE, UniMoRe). Niente agenzie, niente
+                    sconosciuti.
+                  </span>
                 </div>
                 <CampoTesto etichetta="Il tuo nome" value={cNome} onChange={setCNome} autoComplete="given-name" maxLength={40} />
                 <TestoVerificato
@@ -2302,13 +2521,18 @@ function Riepilogo({
         {riga(
           "Chi ci abita",
           coinq.length || inviti
-            ? [coinq.length ? `${coinq.length} descritti` : null, inviti ? `${inviti} invitati` : null].filter(Boolean).join(" · ")
+            ? [
+                coinq.length ? `${coinq.length} ${coinq.length === 1 ? "descritto" : "descritti"}` : null,
+                inviti ? `${inviti} ${inviti === 1 ? "invitato" : "invitati"}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
             : "nessuno",
           3,
         )}
         {riga("Contratto", `${contratto}${agenzia ? " · tramite agenzia" : ""}${caparra ? ` · caparra ${caparra.toLowerCase()}` : ""}`, 4)}
         {riga("Foto", foto ? `${foto}` : "nessuna", 4)}
-        {riga("Contatti", contatti ? `${contatti} ${contatti === 1 ? "recapito" : "recapiti"}, visibili solo agli studenti UniBo` : "mancano", 5)}
+        {riga("Contatti", contatti ? `${contatti} ${contatti === 1 ? "recapito" : "recapiti"}, visibili solo a chi è entrato con una mail universitaria` : "mancano", 5)}
       </div>
       <p style={css(`margin:0;font-size:14px;line-height:1.45;color:${C.grigio}`)}>
         Pubblicando confermi che la stanza esiste, che le foto sono della casa vera e che il prezzo è quello reale.

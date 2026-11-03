@@ -29,11 +29,14 @@ const sembraNumero = (s: string) => /^[+\d][\d\s.-]{7,}$/.test(s.trim());
 
 export function BachecaCerco({
   loggato,
+  studente = true,
   mioId,
   onAccedi,
   onModificaMio,
 }: {
   loggato: boolean;
+  /** entrato con una mail universitaria: chi affitta e non studia la bacheca non la vede */
+  studente?: boolean;
   mioId: string | null;
   onAccedi: () => void;
   onModificaMio: () => void;
@@ -93,6 +96,19 @@ export function BachecaCerco({
 
   const mio = voci.find((v) => v.profile_id === mioId);
 
+  // chi affitta e non studia riceve una bacheca vuota dal database: va detto perché, non «nessuno ha pubblicato»
+  if (!studente && voci.length === 0) {
+    return (
+      <div style={css(`margin:4px 20px 0;border:2px solid ${C.ink};background:${C.carta};padding:20px`)}>
+        <div style={css("font-size:19px;font-weight:900;letter-spacing:-.03em;line-height:1.15")}>La bacheca è solo per studenti.</div>
+        <p style={css(`margin:8px 0 0;font-size:14.5px;line-height:1.45;color:${C.testo}`)}>
+          Chi cerca stanza qui scrive età, corso e budget, e lo fa sapendo che lo leggono altri studenti. Tu che affitti ci arrivi dall&apos;altra
+          parte: pubblica la stanza, e sono loro a scriverti.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={css("padding:0 20px 14px")}>
@@ -109,7 +125,7 @@ export function BachecaCerco({
 
       {voci.length === 0 ? (
         <div style={css(`margin:0 20px;border:2px dashed ${C.bordo};padding:22px 18px;font-size:14.5px;color:${C.grigio};line-height:1.45`)}>
-          Per ora nessuno ha pubblicato. Se cerchi stanza, sii il primo: chi affitta passa da qui.
+          Per ora nessuno ha pubblicato. Se cerchi stanza, sii il primo: chi affitta e studia passa da qui.
         </div>
       ) : (
         voci.map((v) => (

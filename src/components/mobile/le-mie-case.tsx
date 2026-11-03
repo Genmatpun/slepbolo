@@ -5,7 +5,7 @@ import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 import { STATI_STANZA } from "@/lib/constants";
 import { GIORNI_VALIDITA, annuncioScaduto, giorniAllaScadenza, giorniDa, quandoAggiornato, type StatoStanza } from "@/lib/types";
 import { INCOLLA_ATTIVO } from "./pubblica";
-import { BOTTONE, C, css, euro } from "./stile";
+import { BOTTONE, C, css, dataBreve, euro } from "./stile";
 import { CampoTesto, Foglio, Freschezza, Icona, Segmenti } from "./ui";
 
 // ============================================================
@@ -59,6 +59,9 @@ type RigaDb = Omit<CasaMia, "sonoHost" | "rooms"> & { rooms: StanzaMia[] | null 
 const CAMPI = "id, titolo, zona, attivo, confermato_il, aggiornato_il, rooms(id, tipo, posti_liberi, prezzo_mensile, stato)";
 
 const nomeStato = (s: StatoStanza) => STATI_STANZA.find((x) => x.value === s)?.label ?? s;
+
+/** Da quanti giorni prima della scadenza l'annuncio chiede la conferma. */
+const GIORNI_AVVISO = 7;
 
 /** Un bottone disattivato deve sembrarlo. */
 const spento = (si: boolean) => (si ? ";opacity:.5;cursor:default" : "");
@@ -204,7 +207,7 @@ export function LeMieCase({
     // cosa vuol dire per chi cerca: in ricerca ci sta un annuncio visibile, confermato e con una stanza non presa
     const tuttePrese = casa.rooms.every((r) => (r.id === stanza.id ? stato : r.stato) === "occupata");
     const inRicerca = casa.attivo && (confermata || !annuncioScaduto(casa));
-    const rimetti = " L'annuncio però non è nella ricerca: per rimetterlo online tocca «È ancora libera: rimettila online» qui sotto.";
+    const rimetti = " L'annuncio però non è nella ricerca: per rimetterlo online tocca «Rimettila online: è ancora libera» qui sotto.";
     setEsito({
       dove: stanza.id,
       tono: "ok",
@@ -405,7 +408,8 @@ export function LeMieCase({
       {case_?.map((c) => {
         const scaduto = annuncioScaduto(c);
         const restano = giorniAllaScadenza(c);
-        const daConfermare = !scaduto && restano <= 4;
+        // la conferma si chiede solo nell'ultima settimana: prima, un bottone rosso su ogni casa copre quella che scade davvero
+        const daConfermare = !scaduto && restano <= GIORNI_AVVISO;
         const fuori = !c.attivo || scaduto;
         // senza una stanza libera o in trattativa l'annuncio non è in ricerca: confermarlo non serve
         const senzaStanze = c.rooms.length === 0;
@@ -477,9 +481,9 @@ export function LeMieCase({
               </div>
             )}
 
-            {/* l'azione che conta: confermare che la stanza c'è ancora */}
+            {/* l'azione che conta: confermare che la stanza c'è ancora. In evidenza solo quando serve */}
             <div style={css(`padding:0 14px ${confermabile || esito?.dove === c.id ? "12px" : "0"}`)}>
-              {confermabile && (
+              {confermabile && (fuori || daConfermare) && (
                 <button
                   type="button"
                   disabled={occupato}
@@ -487,8 +491,24 @@ export function LeMieCase({
                   style={css(`${BOTTONE.pieno};height:48px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px${spento(occupato)}`)}
                 >
                   <Icona nome="check" size={18} />
-                  {occupato ? "Un attimo…" : fuori ? "È ancora libera: rimettila online" : "È ancora libera"}
+                  {occupato ? "Un attimo…" : fuori ? "Rimettila online: è ancora libera" : "Confermo: è ancora libera"}
                 </button>
+              )}
+              {confermabile && !fuori && !daConfermare && (
+                <div style={css(`display:flex;flex-wrap:wrap;align-items:center;gap:0 10px;font-size:13.5px;font-weight:700;color:${C.verde}`)}>
+                  <span style={css("display:inline-flex;align-items:center;gap:6px;min-height:44px")}>
+                    <Icona nome="check" size={16} />
+                    Online fino al {dataBreve(new Date(new Date(c.confermato_il).getTime() + GIORNI_VALIDITA * 86_400_000).toISOString())}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={occupato}
+                    onClick={() => conferma(c, false)}
+                    style={css(`${SECONDARIA};padding:0;color:${C.ink};text-decoration:underline;text-underline-offset:3px${spento(occupato)}`)}
+                  >
+                    {occupato ? "Un attimo…" : "Conferma adesso"}
+                  </button>
+                </div>
               )}
               {mostraEsito(c.id)}
             </div>

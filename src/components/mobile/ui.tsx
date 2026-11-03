@@ -180,13 +180,15 @@ export function Segmenti<T extends string>({
     <div ref={gruppo} role="radiogroup" aria-label={etichetta} style={css("display:flex;gap:0;width:100%")}>
       {opzioni.map((o, i) => {
         const on = o.value === valore;
+        // ancora nessuna scelta: Tab entra sulla prima
+        const raggiungibile = on || (i === 0 && !opzioni.some((x) => x.value === valore));
         return (
           <button
             key={o.value}
             type="button"
             role="radio"
             aria-checked={on}
-            tabIndex={on ? 0 : -1}
+            tabIndex={raggiungibile ? 0 : -1}
             onKeyDown={(e) => conFrecce(e, i)}
             onClick={() => onChange(o.value)}
             style={css(

@@ -8,7 +8,7 @@ import { AnnuncioEstratto, LUNGHEZZA_MAX, ripulisci, type RispostaEstrazione } f
 // ============================================================
 // "Incolla da WhatsApp": dal testo di un annuncio ai campi del modulo.
 //
-// - Solo studenti UniBo entrati (o l'admin), massimo 20 al giorno a testa
+// - Solo chi è entrato con una mail universitaria, gli host abilitati e l'admin, massimo 20 al giorno a testa
 //   (funzione usa_estrazione nel database).
 // - Il modello deve rispondere nello schema AnnuncioEstratto: niente testo
 //   libero da interpretare.
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return errore(401, "Entra con la mail UniBo per usare la compilazione automatica.");
+  if (!user) return errore(401, "Entra nell'app per usare la compilazione automatica.");
 
   // 2. il testo
   let testo = "";

@@ -13,7 +13,7 @@ import { Foglio, Icona } from "./ui";
 //
 // I recapiti non arrivano con la pagina: si chiedono qui, solo quando
 // serve, alla tabella annunci_privati. Il database li dà soltanto a chi
-// è entrato con la mail @studio.unibo.it (regola "leggo i contatti").
+// è entrato con una mail universitaria ammessa, all'host e all'admin.
 // ============================================================
 
 /** Numero in formato wa.me: solo cifre, con prefisso internazionale. */
@@ -34,11 +34,13 @@ type Stato =
   | { tipo: "carico" }
   | { tipo: "ok"; dati: AnnuncioPrivato }
   | { tipo: "vuoto" }
+  | { tipo: "solo-studenti" }
   | { tipo: "errore" };
 
 export function Contatti({
   annuncio,
   loggato,
+  studente = true,
   onAccedi,
   contattataIl,
   onContattata,
@@ -46,6 +48,8 @@ export function Contatti({
 }: {
   annuncio: MobileAnnuncio;
   loggato: boolean;
+  /** entrato con una mail universitaria: a chi affitta e non studia il database non dà i contatti degli altri */
+  studente?: boolean;
   onAccedi: () => void;
   /** data ISO dell'ultima volta che l'utente ha scritto a chi affitta, se l'ha fatto */
   contattataIl: string | null;
@@ -76,6 +80,8 @@ export function Contatti({
         if (!vivo) return;
         if (error) return setStato({ tipo: "errore" });
         const d = data as AnnuncioPrivato | null;
+        // nessuna riga per chi non studia: non è che i recapiti manchino
+        if (!d && !studente) return setStato({ tipo: "solo-studenti" });
         if (!d || (!d.contatto_telefono && !d.contatto_whatsapp && !d.contatto_email)) {
           return setStato({ tipo: "vuoto" });
         }
@@ -84,7 +90,7 @@ export function Contatti({
     return () => {
       vivo = false;
     };
-  }, [annuncio.id, loggato, tentativo]);
+  }, [annuncio.id, loggato, studente, tentativo]);
 
   const intestazione = (testo: string) => (
     <div style={css(`font-size:13px;font-weight:800;color:${C.ink};margin-bottom:10px;display:flex;align-items:center;gap:8px`)}>
@@ -102,7 +108,7 @@ export function Contatti({
             <Icona nome="freccia" />
           </button>
           <div style={css(`font-size:12.5px;color:${C.grigio};margin-top:8px;line-height:1.4`)}>
-            Con la mail UniBo: così chi pubblica non viene contattato da agenzie e sconosciuti.
+            Con la mail universitaria: così chi pubblica non viene contattato da agenzie e sconosciuti.
           </div>
         </>
       )}
@@ -120,6 +126,12 @@ export function Contatti({
           <button type="button" onClick={() => setTentativo((t) => t + 1)} style={css(BOTTONE.piccolo)}>
             Riprova
           </button>
+        </div>
+      )}
+
+      {stato.tipo === "solo-studenti" && (
+        <div style={css(`font-size:14px;color:${C.grigio};font-weight:600;min-height:44px;display:flex;align-items:center;line-height:1.4`)}>
+          I contatti di chi affitta li vede solo chi è entrato con una mail universitaria.
         </div>
       )}
 

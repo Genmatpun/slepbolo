@@ -5,6 +5,7 @@ import { createClient, supabaseConfigurato } from "@/lib/supabase/client";
 import {
   ABIT_CATEGORIE,
   ANNI_CORSO,
+  DOMINI_STUDENTI,
   GENERI_COINQUILINO,
   LINGUE,
   SEDI_UNIBO,
@@ -43,6 +44,7 @@ const BUDGET_MAX = 900;
 
 export function ProfiloTab({
   user,
+  conCase = true,
   onLogout,
   onSaved,
   onPubblica,
@@ -52,6 +54,8 @@ export function ProfiloTab({
   onAiuto,
 }: {
   user: Utente;
+  /** Mostra qui «Le mie case». Chi ha già un annuncio le ha nella scheda sua. */
+  conCase?: boolean;
   onLogout: () => void;
   onSaved: (p: Preferenze) => void;
   onPubblica: () => void;
@@ -216,6 +220,8 @@ export function ProfiloTab({
   const campi = [nome, eta, corso, anno, sede, budget, fotoUrl, abit.length ? "x" : "", zone.length ? "x" : ""];
   const compl = campi.filter((x) => x !== null && x !== "").length / campi.length;
   const iniziali = ((nome[0] ?? user.email[0] ?? "?") + (cognome[0] ?? "")).toUpperCase();
+  // chi entra con la mail di un ateneo è uno studente; gli altri sono host abilitati da noi
+  const ateneo = DOMINI_STUDENTI.find((d) => user.email.toLowerCase().endsWith("@" + d.dominio))?.ateneo ?? null;
   const etaNonValida = !!eta && (!/^\d+$/.test(eta) || Number(eta) < 16 || Number(eta) > 99);
 
   return (
@@ -234,7 +240,7 @@ export function ProfiloTab({
               {iniziali}
             </span>
           )}
-          <span style={css(`position:absolute;left:0;right:0;bottom:0;background:rgba(27,24,21,.78);color:${C.crema};font-size:10px;font-weight:800;text-align:center;padding:3px 0;letter-spacing:.04em;text-transform:uppercase`)}>
+          <span style={css(`position:absolute;left:0;right:0;bottom:0;background:rgba(27,24,21,.78);color:${C.crema};font-size:11px;font-weight:800;text-align:center;padding:3px 0;letter-spacing:.02em;text-transform:uppercase`)}>
             {caricamentoFoto ? "Carico…" : "Cambia foto"}
           </span>
           <input
@@ -247,12 +253,12 @@ export function ProfiloTab({
         </label>
         <div style={css("min-width:0")}>
           <div style={css("font-size:20px;font-weight:900;letter-spacing:-.035em;line-height:1.05")}>
-            {`${nome} ${cognome}`.trim() || "Studente UniBo"}
+            {`${nome} ${cognome}`.trim() || (ateneo ? `Studente ${ateneo}` : "Il tuo profilo")}
           </div>
           <div style={css(`font-size:13px;color:${C.grigio};font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis`)}>{user.email}</div>
-          <span style={css(`display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:rgba(46,125,91,.12);border:1px solid rgba(46,125,91,.3);color:${C.verde};font-size:12px;font-weight:800;padding:3px 8px`)}>
+          <span style={css(`display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:rgba(46,125,91,.12);border:1px solid rgba(46,125,91,.3);color:${C.verdeTesto};font-size:12px;font-weight:800;padding:3px 8px`)}>
             <Icona nome="check" size={14} />
-            Verificato UniBo
+            {ateneo ? `Studente ${ateneo}` : "Host abilitato"}
           </span>
         </div>
       </div>
@@ -291,16 +297,12 @@ export function ProfiloTab({
         </div>
       )}
 
-      <Sezione
-        titolo="Le mie case"
-        extra={
-          <button type="button" onClick={onPubblica} style={css(`${BOTTONE.piccolo};display:flex;align-items:center;gap:6px;letter-spacing:0;text-transform:none`)}>
-            <Icona nome="piu" size={16} />
-            Pubblica
-          </button>
-        }
-      />
-      <LeMieCase userId={user.id} onModifica={onModifica} onPubblica={onPubblica} onCambiato={onCambiato} />
+      {conCase && (
+        <>
+          <Sezione titolo="Per chi affitta" />
+          <LeMieCase userId={user.id} onModifica={onModifica} onPubblica={onPubblica} onCambiato={onCambiato} />
+        </>
+      )}
 
       <Sezione titolo="Stai cercando casa?" />
       <button

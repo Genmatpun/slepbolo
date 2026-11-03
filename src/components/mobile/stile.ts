@@ -25,6 +25,8 @@ export const PALETTE = {
   arancio: "#e4572e",
   arancioTesto: "#b23a17",
   verde: "#2e7d5b",
+  /** Testo verde su fondo verde chiaro: il verde pieno lì non arriva a 4.5:1. */
+  verdeTesto: "#1f5e43",
   ambra: "#e4a11b",
   ambraFondo: "#fdf3dd",
   ambraTesto: "#8a5d00",

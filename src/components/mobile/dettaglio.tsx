@@ -45,6 +45,7 @@ export function Dettaglio({
   onSalva,
   onChiudi,
   loggato,
+  studente = true,
   onAccedi,
   sedeUtente,
   onAvviso,
@@ -56,6 +57,8 @@ export function Dettaglio({
   onSalva: () => void;
   onChiudi: () => void;
   loggato: boolean;
+  /** entrato con una mail universitaria (vede i contatti di chi affitta) */
+  studente?: boolean;
   onAccedi: () => void;
   sedeUtente: string | null;
   onAvviso: (testo: string) => void;
@@ -119,8 +122,11 @@ export function Dettaglio({
 
   const tondo = `width:44px;height:44px;flex:none;border:0;background:${C.crema};color:${C.ink};display:grid;place-items:center;cursor:pointer`;
   const frecciaFoto = `position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;background:rgba(27,24,21,.72);color:${C.crema};cursor:pointer;display:grid;place-items:center`;
-  // senza foto la copertina è una fascia: il contenuto vero arriva prima
-  const altezzaFoto = a.foto.length ? 270 : 150;
+  // Le foto qui si vedono intere (nelle schede restano ritagliate): il riquadro è 4:3,
+  // quella della maggior parte delle foto da telefono, e le verticali stanno al centro.
+  // Senza foto la copertina è una fascia: il contenuto vero arriva prima.
+  const riquadroFoto = useRef<HTMLDivElement>(null);
+  const stileRiquadro = a.foto.length ? "width:100%;aspect-ratio:4/3;max-height:min(480px,62vh)" : "height:150px";
 
   return (
     <div
@@ -134,7 +140,7 @@ export function Dettaglio({
     >
       <div
         className="sb-noscroll"
-        onScroll={(e) => setOltre(e.currentTarget.scrollTop > altezzaFoto - 70)}
+        onScroll={(e) => setOltre(e.currentTarget.scrollTop > (riquadroFoto.current?.offsetHeight ?? 150) - 70)}
         style={css("flex:1;overflow:auto;overscroll-behavior:contain")}
       >
         {/* Indietro, Condividi e Salva restano in alto anche scorrendo: l'uscita c'è sempre */}
@@ -169,15 +175,15 @@ export function Dettaglio({
         </div>
 
         {/* foto */}
-        <div style={css(`position:relative;height:${altezzaFoto}px`)}>
+        <div ref={riquadroFoto} style={css(`position:relative;${stileRiquadro}`)}>
           {a.foto.length ? (
-            <div ref={striscia} className="sb-noscroll" style={css("display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory")}>
+            <div ref={striscia} className="sb-noscroll" style={css(`display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;background:${C.ink}`)}>
               {a.foto.map((u, k) => (
                 <div
                   key={k}
                   role="img"
                   aria-label={`Foto ${k + 1} di ${a.foto.length}`}
-                  style={css(`flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;background:${C.ink} url('${u}') center/cover no-repeat`)}
+                  style={css(`flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;background:${C.ink} url('${u}') center/contain no-repeat`)}
                 />
               ))}
             </div>
@@ -471,6 +477,7 @@ export function Dettaglio({
       <Contatti
         annuncio={a}
         loggato={loggato}
+        studente={studente}
         onAccedi={onAccedi}
         contattataIl={contattataIl}
         onContattata={onContattata}

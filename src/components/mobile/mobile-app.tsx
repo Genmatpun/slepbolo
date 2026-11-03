@@ -15,6 +15,7 @@ import { Dettaglio, sfondoCasa } from "./dettaglio";
 import { Glossario } from "./glossario";
 import { ProfiloTab, type Preferenze, type Utente } from "./profilo";
 import { BachecaCerco, IlMioCerco } from "./cerco";
+import { LeMieCase } from "./le-mie-case";
 import { Pubblica } from "./pubblica";
 
 export type { MobileAnnuncio } from "@/lib/annuncio-mobile";
@@ -28,7 +29,8 @@ export type { MobileAnnuncio } from "@/lib/annuncio-mobile";
 // contattare chi affitta, pubblicare e vedere chi cerca stanza.
 // ============================================================
 
-type Tab = "scopri" | "cerca" | "mappa" | "salvati" | "profilo";
+/** "case" c'è solo per chi ha (o sta ricevendo) almeno un annuncio. */
+type Tab = "scopri" | "cerca" | "mappa" | "salvati" | "case" | "profilo";
 
 /** Una casa salvata: teniamo i dati essenziali per riconoscerla anche quando sparisce. */
 interface Salvata {
@@ -88,6 +90,16 @@ function scriviJSON(chiave: string, area: "local" | "session", v: unknown) {
     // memoria piena o finestra privata: pazienza
   }
 }
+function dimentica(chiave: string) {
+  try {
+    localStorage.removeItem(chiave);
+  } catch {
+    // niente da fare
+  }
+}
+
+/** Chi entra per pubblicare e passa dalla mail di conferma ritrova il modulo aperto. */
+const CHIAVE_PUBBLICA_DOPO = "slepbolo-pubblica-dopo";
 
 export function MobileApp({
   annunci,
@@ -210,6 +222,33 @@ export function MobileApp({
   }, []);
 
   const loggato = !!user;
+  /** entrato con la mail di un ateneo: chi affitta e non studia non vede contatti e bacheca degli altri */
+  const studente = !!user && DOMINI_STUDENTI.some((d) => user.email.toLowerCase().endsWith("@" + d.dominio));
+
+  // ---- chi ha una casa (sua, dove abita o che gli stanno passando) ha la scheda «Le mie case» ----
+  // null = non lo so ancora
+  const [haCase, setHaCase] = useState<boolean | null>(null);
+  const idUtente = user?.id ?? null;
+  const contaCase = useCallback(async () => {
+    if (!idUtente || !supabaseConfigurato()) return setHaCase(idUtente ? false : null);
+    const supabase = createClient();
+    const [host, membro, arrivo] = await Promise.all([
+      supabase.from("apartments").select("id", { count: "exact", head: true }).eq("host_id", idUtente),
+      supabase.from("housemates").select("id", { count: "exact", head: true }).eq("profile_id", idUtente).eq("stato", "confermato"),
+      supabase.rpc("passaggi_in_arrivo"),
+    ]);
+    // se il conteggio non risponde, la scheda resta com'era: le case restano comunque raggiungibili dal profilo
+    if (host.error) return;
+    const inArrivo = arrivo.error ? 0 : ((arrivo.data as unknown[] | null) ?? []).length;
+    setHaCase((host.count ?? 0) + (membro.count ?? 0) + inArrivo > 0);
+  }, [idUtente]);
+  useEffect(() => {
+    contaCase();
+  }, [contaCase]);
+  // l'ultima casa è stata tolta (o si è usciti): la scheda non c'è più
+  useEffect(() => {
+    if (tab === "case" && (user === null || haCase === false)) setTab(user ? "profilo" : "scopri");
+  }, [tab, user, haCase]);
 
   // ---- salvati: sul dispositivo, per utente (o per l'ospite) ----
   const chiaveSalvati = user ? `slepbolo-salvati-${user.id}` : user === null ? "slepbolo-salvati-ospite" : null;
@@ -310,13 +349,24 @@ export function MobileApp({
   // ---- link /app?pubblica=1 o ?modifica=<id>: serve l'accesso, poi si apre il modulo ----
   const pubblicaInSospeso = useRef(pubblicaIniziale);
   useEffect(() => {
-    if (!pubblicaInSospeso.current || user === undefined) return;
+    if (user === undefined) return;
+    // chi si è registrato per pubblicare torna dal link della mail di conferma in una pagina nuova:
+    // la voglia di pubblicare l'abbiamo messa da parte sul dispositivo
+    if (user && !pubblicaInSospeso.current) {
+      const p = leggiJSON<{ modificaId: string | null; quando: number } | null>(CHIAVE_PUBBLICA_DOPO, "local", null);
+      if (p) {
+        dimentica(CHIAVE_PUBBLICA_DOPO);
+        if (Date.now() - p.quando < 48 * 3600_000) pubblicaInSospeso.current = { modificaId: p.modificaId };
+      }
+    }
+    if (!pubblicaInSospeso.current) return;
     if (user === null) {
       chiediAccesso("pubblica");
       return;
     }
     setPubblica(pubblicaInSospeso.current);
     pubblicaInSospeso.current = null;
+    dimentica(CHIAVE_PUBBLICA_DOPO);
   }, [user, chiediAccesso]);
 
   // ---- chi si registra da una casa la ritrova aperta quando torna dopo la mail di conferma ----
@@ -478,8 +528,9 @@ export function MobileApp({
 
   const apriPubblica = (modificaId: string | null = null) => {
     if (!user) {
-      // dopo l'accesso il modulo si apre da solo
+      // dopo l'accesso il modulo si apre da solo, anche se si passa dalla mail di conferma
       pubblicaInSospeso.current = { modificaId };
+      scriviJSON(CHIAVE_PUBBLICA_DOPO, "local", { modificaId, quando: Date.now() });
       return chiediAccesso("pubblica");
     }
     setDetail(null);
@@ -578,6 +629,7 @@ export function MobileApp({
     ["cerca", "Cerca"],
     ["mappa", "Mappa"],
     ["salvati", "Salvati"],
+    ...(user && haCase ? [["case", "Le mie case"] as [Tab, string]] : []),
     ["profilo", user ? "Profilo" : "Entra"],
   ];
 
@@ -939,6 +991,7 @@ export function MobileApp({
                   <div style={css("padding-top:16px")}>
                     <BachecaCerco
                       loggato={loggato}
+                      studente={studente}
                       mioId={user?.id ?? null}
                       onAccedi={() => chiediAccesso("contatti")}
                       onModificaMio={() => setCercoAperto(true)}
@@ -1173,21 +1226,56 @@ export function MobileApp({
               </div>
             )}
 
+            {/* LE MIE CASE: la casa di chi affitta, a un tocco */}
+            {tab === "case" && user && haCase && (
+              <div className="sb-noscroll sb-vista" style={css(`height:100%;overflow:auto;overscroll-behavior:contain;padding:${testata} 20px calc(120px + env(safe-area-inset-bottom))`)}>
+                <div style={css("display:flex;align-items:center;gap:8px")}>
+                  <h1 style={css(`${titoloGrande};flex:1`)}>Le mie case</h1>
+                  <button type="button" onClick={() => apriPubblica()} style={css(`${BOTTONE.piccolo};display:flex;align-items:center;gap:6px;white-space:nowrap`)}>
+                    <Icona nome="piu" size={16} />
+                    Aggiungi una casa
+                  </button>
+                </div>
+                <div style={css(`height:2px;background:${C.ink};margin:12px 0 16px`)} />
+                <LeMieCase
+                  userId={user.id}
+                  onModifica={(id) => apriPubblica(id)}
+                  onPubblica={() => apriPubblica()}
+                  onCambiato={() => {
+                    aggiorna();
+                    contaCase();
+                  }}
+                />
+              </div>
+            )}
+
             {/* PROFILO / ENTRA */}
             {tab === "profilo" &&
               (user ? (
                 <ProfiloTab
                   user={user}
+                  conCase={!haCase}
                   onLogout={logout}
                   onSaved={(p) => setPref(p)}
                   onPubblica={() => apriPubblica()}
                   onModifica={(id) => apriPubblica(id)}
-                  onCambiato={aggiorna}
+                  onCambiato={() => {
+                    aggiorna();
+                    contaCase();
+                  }}
                   onCerco={() => setCercoAperto(true)}
                   onAiuto={() => setAiuto(true)}
                 />
               ) : user === null ? (
-                <AccediScreen inLinea onAiuto={() => setAiuto(true)} onHoUnaStanza={() => apriPubblica()} />
+                <AccediScreen
+                  inLinea
+                  onAiuto={() => setAiuto(true)}
+                  onHoUnaStanza={() => {
+                    // niente secondo accesso sopra a questo: si entra da qui, poi il modulo si apre da solo
+                    pubblicaInSospeso.current = { modificaId: null };
+                    scriviJSON(CHIAVE_PUBBLICA_DOPO, "local", { modificaId: null, quando: Date.now() });
+                  }}
+                />
               ) : null)}
           </main>
 
@@ -1195,7 +1283,7 @@ export function MobileApp({
           <nav
             className="sb-nav"
             aria-label="Sezioni dell'app"
-            style={css(`position:absolute;left:0;right:0;bottom:0;height:calc(78px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:rgba(255,253,249,.94);backdrop-filter:blur(14px);border-top:2px solid ${C.ink};display:grid;grid-template-columns:repeat(5,1fr);align-items:start;padding-top:8px;z-index:40`)}
+            style={css(`position:absolute;left:0;right:0;bottom:0;height:calc(78px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:rgba(255,253,249,.94);backdrop-filter:blur(14px);border-top:2px solid ${C.ink};display:grid;grid-template-columns:repeat(${tabDefs.length},1fr);align-items:start;padding-top:8px;z-index:40`)}
           >
             {/* solo da computer: il logo in cima al menu laterale */}
             <div className="sb-solo-desktop" style={css("padding:0 12px 22px")}>
@@ -1217,7 +1305,7 @@ export function MobileApp({
                   style={css("display:flex;flex-direction:column;align-items:center;gap:7px;background:transparent;border:0;padding:8px 0;min-height:52px;cursor:pointer;font-family:inherit")}
                 >
                   <span aria-hidden className="sb-tab-segno" style={css(`width:22px;height:4px;background:${on ? C.rosso : C.spento};transition:background .2s`)} />
-                  <span style={css(`font-size:12px;font-weight:${on ? 800 : 600};color:${on ? C.ink : C.grigio};letter-spacing:-.01em`)}>
+                  <span style={css(`font-size:12px;font-weight:${on ? 800 : 600};color:${on ? C.ink : C.grigio};letter-spacing:-.01em;line-height:1.1;text-align:center;padding:0 2px`)}>
                     {label}
                     {k === "salvati" && salvate.length ? ` · ${salvate.length}` : ""}
                   </span>
@@ -1238,6 +1326,7 @@ export function MobileApp({
             onSalva={() => toggleSalva(det)}
             onChiudi={() => setDetail(null)}
             loggato={loggato}
+            studente={studente}
             onAccedi={() => chiediAccesso("contatti")}
             sedeUtente={pref.sede}
             onAvviso={(t) => mostraAvviso(t)}
@@ -1254,13 +1343,24 @@ export function MobileApp({
             modificaId={pubblica.modificaId}
             onChiudi={(cambiato) => {
               setPubblica(null);
-              if (cambiato) aggiorna();
+              if (cambiato) {
+                aggiorna();
+                contaCase();
+              }
             }}
             onVedi={(id) => {
               // l'annuncio appena pubblicato arriva con l'aggiornamento: si apre appena c'è
               setPubblica(null);
               aggiorna();
               setDetail(id);
+            }}
+            onLeMieCase={() => {
+              setPubblica(null);
+              aggiorna();
+              setHaCase(true);
+              setTab("case");
+              setDetail(null);
+              contaCase();
             }}
           />
         )}
@@ -1283,6 +1383,7 @@ export function MobileApp({
                 setAccesso(false);
                 // chi rinuncia non deve ritrovarsi il modulo aperto al prossimo accesso
                 pubblicaInSospeso.current = null;
+                dimentica(CHIAVE_PUBBLICA_DOPO);
               }}
               onAiuto={() => setAiuto(true)}
             />
@@ -1454,6 +1555,13 @@ function ComeFunziona() {
         <p style={css(cosa)}>Le case che hai messo da parte. Restano su questo telefono.</p>
       </div>
       <div style={css(voce)}>
+        <div style={css(nome)}>Hai una stanza?</div>
+        <p style={css(cosa)}>
+          Tocca «Ho una stanza» in Scopri. Se non studi, quando entri scegli «Affitto una stanza». Dopo la pubblicazione compare la scheda «Le mie
+          case»: lì segni le stanze prese e, ogni 30 giorni, confermi che l&apos;annuncio è ancora valido.
+        </p>
+      </div>
+      <div style={css(voce)}>
         <div style={css(nome)}>I quadratini</div>
         <p style={css(cosa)}>Uno per ogni camera della casa.</p>
         <div style={css(`display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:13.5px;font-weight:700;color:${C.testo}`)}>
@@ -1546,6 +1654,29 @@ function AccediScreen({
   const [dominio, setDominio] = useState<DominioStudenti>("studio.unibo.it");
   /** chi affitta e non è studente: entra con una mail qualsiasi, se l'abbiamo abilitata */
   const [host, setHost] = useState(false);
+  /** «Pubblicala gratis» dalla scheda Entra cambia il motivo qui, senza aprire un secondo accesso sopra */
+  const [perPubblicare, setPerPubblicare] = useState(motivo === "pubblica");
+  /** la mail di chi affitta è abilitata? null = non controllata */
+  const [abilitata, setAbilitata] = useState<boolean | null>(null);
+  const titolo = useRef<HTMLHeadingElement>(null);
+
+  function scegliHost(v: boolean) {
+    if (v === host) return;
+    setHost(v);
+    setLocal("");
+    setErrore(null);
+    setAvviso(null);
+    setAbilitata(null);
+  }
+
+  /** Chi affitta sa subito se la sua mail è abilitata, prima di scegliere la password. */
+  async function controllaAbilitazione() {
+    if (!host || modo !== "registrati" || !supabaseConfigurato()) return;
+    const email = mailCompleta();
+    if (!email) return setAbilitata(null);
+    const { data, error } = await createClient().rpc("mail_host_abilitata", { p_email: email });
+    setAbilitata(error ? null : !!data);
+  }
   const esempio = DOMINI_STUDENTI.find((d) => d.dominio === dominio)?.esempio ?? "nome.cognome";
 
   /** La mail completa da quello che è scritto nel campo (null se il campo è vuoto o non valido). */
@@ -1599,10 +1730,9 @@ function AccediScreen({
     const { data: abilitata, error: erroreVerifica } = await supabase.rpc("mail_host_abilitata", { p_email: email });
     if (erroreVerifica || !abilitata) {
       setInvio(false);
+      if (!erroreVerifica) setAbilitata(false);
       return setErrore(
-        erroreVerifica
-          ? "Qualcosa non ha funzionato. Riprova tra poco."
-          : "Questa mail non è ancora abilitata. Scrivici a slepbolo@gmail.com: la abilitiamo noi, poi torni qui e ti registri.",
+        erroreVerifica ? "Qualcosa non ha funzionato. Riprova tra poco." : "Questa mail non è ancora abilitata: chiedi l'abilitazione qui sopra.",
       );
     }
     const { nome, cognome } = nomeDaMail(email.split("@")[0]);
@@ -1690,24 +1820,67 @@ function AccediScreen({
         )}
       </div>
 
-      <h1 style={css("font-size:36px;line-height:.98;font-weight:900;letter-spacing:-.04em;margin:24px 0 8px;max-width:12ch")}>
-        {host ? (modo === "registrati" ? "Affitti una stanza." : "Bentornato.") : modo === "registrati" ? "Solo studenti." : "Bentornato."}
+      <h1 ref={titolo} tabIndex={-1} style={css("font-size:36px;line-height:.98;font-weight:900;letter-spacing:-.04em;margin:24px 0 8px;max-width:12ch;outline:none")}>
+        {modo === "accedi"
+          ? "Bentornato."
+          : perPubblicare
+            ? "Pubblica la tua stanza."
+            : host
+              ? "Affitti una stanza."
+              : motivo === "contatti"
+                ? "Solo studenti."
+                : "Entra in SLEPBOLO."}
       </h1>
       <p style={css("font-size:15px;line-height:1.45;color:rgba(250,243,231,.92);margin:0 0 20px;max-width:34ch")}>
         {host
           ? modo === "accedi"
             ? "Accedi con la mail che hai usato per registrarti."
-            : "Non studi ma affitti una stanza? Entri con la tua mail, dopo che l'abbiamo abilitata noi: così restano fuori agenzie e sconosciuti."
+            : "Entri con la tua mail, dopo che l'abbiamo abilitata noi: così restano fuori agenzie e sconosciuti."
           : modo === "accedi"
           ? "Accedi con la tua mail universitaria."
-          : motivo === "pubblica"
-            ? "Per pubblicare una stanza entra con la mail istituzionale: così chi ti scrive è uno studente vero. Appena entri si apre il modulo."
+          : perPubblicare
+            ? "Studi? Entra con la mail universitaria: così chi ti scrive è uno studente vero. Appena entri si apre il modulo."
             : motivo === "contatti"
-              ? "Per vedere i contatti entra con la mail istituzionale: tiene fuori agenzie e sconosciuti. Poi ritrovi la casa dov'eri."
-              : "Entra con la mail istituzionale: tiene fuori agenzie e sconosciuti. Ti servono solo mail e password."}
+              ? "Per vedere i contatti entra con la mail universitaria: tiene fuori agenzie e sconosciuti. Poi ritrovi la casa dov'eri."
+              : "Entra con la mail universitaria: tiene fuori agenzie e sconosciuti. Ti servono solo mail e password."}
       </p>
 
-      <div role="group" aria-label="Registrati o accedi" style={css("display:flex;gap:6px;margin-bottom:20px")}>
+      {/* chi sei, prima di tutto: chi affitta e non studia non deve cercare un link sotto il bottone */}
+      <div
+        role="radiogroup"
+        aria-label="Entri come"
+        onKeyDown={(e) => {
+          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+          e.preventDefault();
+          scegliHost(!host);
+          const altro = e.currentTarget.querySelectorAll<HTMLButtonElement>("[role=radio]")[host ? 0 : 1];
+          altro?.focus();
+        }}
+        style={css("display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px")}
+      >
+        {([false, true] as const).map((comeHost) => {
+          const on = host === comeHost;
+          return (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={on}
+              tabIndex={on ? 0 : -1}
+              key={String(comeHost)}
+              onClick={() => scegliHost(comeHost)}
+              style={css(
+                `min-height:60px;border:2px solid ${C.crema};background:${on ? C.crema : "transparent"};color:${on ? C.rosso : C.crema};font-family:inherit;text-align:left;padding:8px 12px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:2px`,
+              )}
+            >
+              <span style={css("font-size:15px;font-weight:900;letter-spacing:-.01em;line-height:1.1")}>{comeHost ? "Affitto una stanza" : "Studio"}</span>
+              <span style={css(`font-size:12.5px;font-weight:600;line-height:1.2;opacity:${on ? 0.85 : 0.8}`)}>{comeHost ? "e non studio" : "ho la mail universitaria"}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* sotto, e più leggero: è il secondo passo, non un'altra scelta uguale alla prima */}
+      <div role="group" aria-label="Registrati o accedi" style={css("display:flex;gap:0;margin-bottom:20px")}>
         {(["registrati", "accedi"] as const).map((m) => (
           <button
             type="button"
@@ -1716,9 +1889,10 @@ function AccediScreen({
             onClick={() => {
               setModo(m);
               setErrore(null);
+              setAbilitata(null);
             }}
             style={css(
-              `flex:1;height:46px;border:2px solid ${C.crema};font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;background:${modo === m ? C.crema : "transparent"};color:${modo === m ? C.rosso : C.crema}`,
+              `flex:1;height:46px;border:0;border-bottom:3px solid ${modo === m ? C.crema : "rgba(250,243,231,.3)"};font-family:inherit;font-size:15px;font-weight:${modo === m ? 900 : 700};cursor:pointer;background:transparent;color:${C.crema};opacity:${modo === m ? 1 : 0.8}`,
             )}
           >
             {m === "registrati" ? "Registrati" : "Accedi"}
@@ -1739,7 +1913,11 @@ function AccediScreen({
               style={css(campo)}
               placeholder="nome@gmail.com"
               value={local}
-              onChange={(e) => setLocal(e.target.value)}
+              onChange={(e) => {
+                setLocal(e.target.value);
+                setAbilitata(null);
+              }}
+              onBlur={controllaAbilitazione}
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
@@ -1775,6 +1953,32 @@ function AccediScreen({
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+          {host && modo === "registrati" && abilitata !== null && (
+            <div role="status" style={css("margin-top:10px;font-size:14px;line-height:1.45;background:rgba(250,243,231,.16);padding:10px 12px")}>
+              {abilitata ? (
+                <span style={css("display:flex;align-items:center;gap:8px;font-weight:800")}>
+                  <Icona nome="check" size={16} />
+                  Mail abilitata: scegli una password e crea l&apos;account.
+                </span>
+              ) : (
+                <>
+                  <b>Questa mail non è ancora abilitata.</b> Chi affitta e non studia entra con una mail che abilitiamo noi, una per una: così
+                  restano fuori le agenzie. Chiedila qui, ti rispondiamo appena è pronta.
+                  <a
+                    href={`mailto:slepbolo@gmail.com?subject=${encodeURIComponent("Abilita la mia mail su SLEPBOLO")}&body=${encodeURIComponent(
+                      `Ciao! Affitto una stanza a Bologna e vorrei pubblicarla su SLEPBOLO. La mail da abilitare è: ${mailCompleta() ?? ""}`,
+                    )}`}
+                    style={css(
+                      `margin-top:10px;height:48px;border:2px solid ${C.crema};background:${C.crema};color:${C.rosso};font-size:15px;font-weight:800;text-decoration:none;padding:0 16px;display:flex;align-items:center;gap:10px`,
+                    )}
+                  >
+                    <Icona nome="mail" size={18} />
+                    Chiedi l&apos;abilitazione
+                  </a>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1836,18 +2040,6 @@ function AccediScreen({
           ? "Negli annunci compaiono solo i contatti che scegli tu."
           : "Il tuo nome non lo vede nessuno: negli annunci compari solo con età, corso e abitudini."}
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          setHost((v) => !v);
-          setLocal("");
-          setErrore(null);
-          setAvviso(null);
-        }}
-        style={css(`${link};margin-top:4px`)}
-      >
-        {host ? "Sei uno studente? Entra con la mail universitaria" : "Affitti una stanza e non studi? Entra come host"}
-      </button>
       <div style={css("display:flex;flex-wrap:wrap;gap:0 22px;margin-top:4px")}>
         {onAiuto && (
           <button type="button" onClick={onAiuto} style={css(link)}>
@@ -1863,12 +2055,19 @@ function AccediScreen({
           Privacy
         </a>
       </div>
-      {onHoUnaStanza && (
+      {onHoUnaStanza && !perPubblicare && (
         <div style={css("margin-top:14px;border-top:2px solid rgba(250,243,231,.4);padding-top:14px")}>
           <div style={css("font-size:15px;font-weight:800")}>Hai una stanza da affittare?</div>
           <button
             type="button"
-            onClick={onHoUnaStanza}
+            onClick={() => {
+              // si entra da qui stesso: il modulo si apre appena dentro
+              onHoUnaStanza();
+              setPerPubblicare(true);
+              setModo("registrati");
+              titolo.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+              titolo.current?.focus({ preventScroll: true });
+            }}
             style={css(`margin-top:10px;width:100%;height:52px;border:2px solid ${C.crema};background:transparent;color:${C.crema};font-family:inherit;font-size:15px;font-weight:800;text-align:left;padding:0 18px;display:flex;align-items:center;cursor:pointer`)}
           >
             Pubblicala gratis

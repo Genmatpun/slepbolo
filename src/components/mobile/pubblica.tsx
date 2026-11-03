@@ -84,10 +84,10 @@ const PASSI = ["Inizia", "La casa", "Le stanze", "Chi ci abita", "Condizioni", "
 const ULTIMO = PASSI.length - 1;
 
 /**
- * "Incolla da WhatsApp" (passo 0): rimandato. Con false la pubblicazione parte
- * dai campi. Per riaccenderlo: true, e ANTHROPIC_API_KEY su Vercel.
+ * "Incolla da WhatsApp" (passo 0). Serve ANTHROPIC_API_KEY su Vercel: senza,
+ * l'API risponde 503 e chi pubblica compila i campi a mano.
  */
-export const INCOLLA_ATTIVO = false;
+export const INCOLLA_ATTIVO = true;
 
 const GENERI_CASA_SCELTA = [
   { value: "misto", label: "Mista" },
